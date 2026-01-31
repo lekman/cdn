@@ -196,6 +196,59 @@ All checks MUST pass before merge to `main`:
 | Tests | Bun test runner | All pass, coverage thresholds met |
 | Security | Semgrep | Zero findings (`p/security-audit`, `p/secrets`, `p/typescript`) |
 
+## GitHub Actions Workflow Rules
+
+All workflow files live in `.github/workflows/`. When creating or modifying workflows, follow these rules:
+
+### Permissions (Mandatory)
+
+Every workflow MUST declare explicit `permissions` to satisfy GitHub Advanced Security (CodeQL) and enforce least-privilege on the `GITHUB_TOKEN`:
+
+- Set **workflow-level** `permissions` to the minimum needed (typically `contents: read`)
+- Only elevate at **job-level** when a specific job needs more access
+- Never leave `permissions` undeclared — the default token scope is too broad
+
+```yaml
+# Workflow-level: restrict all jobs by default
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps: [...]
+
+  deploy:
+    runs-on: ubuntu-latest
+    # Job-level: elevate only where needed
+    permissions:
+      contents: read
+      id-token: write  # OIDC for cloud auth
+    steps: [...]
+```
+
+### Common Permission Scopes
+
+| Scope | When to use |
+|-------|-------------|
+| `contents: read` | Checkout code (all jobs need this) |
+| `contents: write` | Push commits or branches |
+| `pull-requests: write` | Post PR comments, approve, or merge |
+| `issues: write` | Update issues or post comments |
+| `id-token: write` | OIDC token exchange (Azure, Claude Code auth) |
+| `actions: read` | Read workflow run results |
+| `security-events: write` | Upload SARIF to GitHub Code Scanning |
+
+### Current Workflows
+
+| Workflow | File | Permissions Level |
+|----------|------|-------------------|
+| Continuous Integration | `ci.yml` | Workflow-level: `contents: read` |
+| Release | `release.yml` | Job-level: `contents: read` |
+| Auto-Release | `auto-release.yml` | Job-level: `contents: read`, `pull-requests: write` |
+| Claude Code Review | `claude-code-review.yml` | Job-level: `contents: read`, `pull-requests: write`, `issues: read`, `id-token: write` |
+| Claude Code | `claude.yml` | Job-level: `contents: write`, `pull-requests: write`, `issues: write`, `id-token: write`, `actions: read` |
+
 ## Documentation
 
 | Document | Content |
