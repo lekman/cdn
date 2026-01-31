@@ -26,5 +26,7 @@
         "**/pnpm-lock.yaml": true,
         "**/.terraform/": true,
         "**/*.tfstate": true
-    }
+    },
+    "snyk.advanced.organization": "514894ab-6c44-4cc6-8d04-36e649121974",
+    "snyk.advanced.autoSelectOrganization": true
 }
