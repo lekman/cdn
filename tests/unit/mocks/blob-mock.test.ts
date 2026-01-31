@@ -55,9 +55,7 @@ describe("BlobClientMock", () => {
   describe("failure simulation", () => {
     test("write throws when shouldFail is true", async () => {
       client.setShouldFail(true);
-      expect(client.write(hash, data, contentType)).rejects.toThrow(
-        "simulated failure",
-      );
+      expect(client.write(hash, data, contentType)).rejects.toThrow("simulated failure");
     });
 
     test("read throws when shouldFail is true", async () => {

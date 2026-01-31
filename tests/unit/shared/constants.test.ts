@@ -3,20 +3,15 @@ import {
   CDN_BASE_URL,
   DEFAULT_TTL,
   HASH_LENGTH,
-  MAX_IMAGE_SIZE,
-  SUPPORTED_CONTENT_TYPES,
   isSupportedContentType,
   isValidHash,
+  MAX_IMAGE_SIZE,
+  SUPPORTED_CONTENT_TYPES,
 } from "../../../src/shared/constants";
 
 describe("SUPPORTED_CONTENT_TYPES", () => {
   test("contains exactly the four supported image types", () => {
-    expect(SUPPORTED_CONTENT_TYPES).toEqual([
-      "image/png",
-      "image/jpeg",
-      "image/gif",
-      "image/webp",
-    ]);
+    expect(SUPPORTED_CONTENT_TYPES).toEqual(["image/png", "image/jpeg", "image/gif", "image/webp"]);
   });
 
   test("has length 4", () => {
@@ -85,15 +80,11 @@ describe("isSupportedContentType", () => {
 describe("isValidHash", () => {
   test("returns true for a valid 43-char base64url string", () => {
     // A real SHA-256 base64url hash (no padding)
-    expect(isValidHash("n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg")).toBe(
-      true,
-    );
+    expect(isValidHash("n4bQgYhMfWWaL-qgxVrQFaO_TxsrC4Is0V1sFbDwCgg")).toBe(true);
   });
 
   test("returns true for hash with underscores and hyphens", () => {
-    expect(isValidHash("abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNO-")).toBe(
-      true,
-    );
+    expect(isValidHash("abcdefghijklmnopqrstuvwxyz_ABCDEFGHIJKLMNO-")).toBe(true);
   });
 
   test("returns false for 42-char string (too short)", () => {
@@ -109,26 +100,18 @@ describe("isValidHash", () => {
   });
 
   test("returns false for string with + (standard base64)", () => {
-    expect(isValidHash("n4bQgYhMfWWaL+qgxVrQFaO_TxsrC4Is0V1sFbDwCgg")).toBe(
-      false,
-    );
+    expect(isValidHash("n4bQgYhMfWWaL+qgxVrQFaO_TxsrC4Is0V1sFbDwCgg")).toBe(false);
   });
 
   test("returns false for string with / (standard base64)", () => {
-    expect(isValidHash("n4bQgYhMfWWaL/qgxVrQFaO_TxsrC4Is0V1sFbDwCgg")).toBe(
-      false,
-    );
+    expect(isValidHash("n4bQgYhMfWWaL/qgxVrQFaO_TxsrC4Is0V1sFbDwCgg")).toBe(false);
   });
 
   test("returns false for string with padding =", () => {
-    expect(isValidHash("n4bQgYhMfWWaLqgxVrQFaO_TxsrC4Is0V1sFbDwCg==")).toBe(
-      false,
-    );
+    expect(isValidHash("n4bQgYhMfWWaLqgxVrQFaO_TxsrC4Is0V1sFbDwCg==")).toBe(false);
   });
 
   test("returns false for string with spaces", () => {
-    expect(isValidHash("n4bQgYhMfWWaL qgxVrQFaO TxsrC4Is0V1sFbDwCgg")).toBe(
-      false,
-    );
+    expect(isValidHash("n4bQgYhMfWWaL qgxVrQFaO TxsrC4Is0V1sFbDwCgg")).toBe(false);
   });
 });

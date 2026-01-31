@@ -25,7 +25,7 @@ export class CloudflareClientMock implements ICloudflareClient {
     if (this.shouldFail) {
       throw new CloudflarePurgeError(
         "CloudflareClientMock: simulated purge failure",
-        this.failStatusCode,
+        this.failStatusCode
       );
     }
     this.purgeCalls.push(url);

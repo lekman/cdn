@@ -33,10 +33,7 @@ export class CosmosClientMock implements ICosmosClient {
     return doc;
   }
 
-  async update(
-    id: string,
-    updates: Partial<ImageDocument>,
-  ): Promise<ImageDocument> {
+  async update(id: string, updates: Partial<ImageDocument>): Promise<ImageDocument> {
     if (this.shouldFail) {
       throw new Error("CosmosClientMock: simulated failure");
     }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { CloudflareClientMock } from "../../mocks/cloudflare-mock";
 import { CloudflarePurgeError } from "../../../src/shared/cloudflare-interface";
+import { CloudflareClientMock } from "../../mocks/cloudflare-mock";
 
 describe("CloudflareClientMock", () => {
   let client: CloudflareClientMock;

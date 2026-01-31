@@ -4,11 +4,7 @@
  */
 export type ImageStatus = "processing" | "ready" | "failed";
 
-const VALID_STATUSES: ReadonlySet<string> = new Set<string>([
-  "processing",
-  "ready",
-  "failed",
-]);
+const VALID_STATUSES: ReadonlySet<string> = new Set<string>(["processing", "ready", "failed"]);
 
 /**
  * Runtime type guard for ImageStatus.

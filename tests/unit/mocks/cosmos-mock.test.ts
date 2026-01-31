@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test";
-import { CosmosClientMock } from "../../mocks/cosmos-mock";
 import type { ImageDocument } from "../../../src/shared/types";
+import { CosmosClientMock } from "../../mocks/cosmos-mock";
 
 const makeDoc = (id: string): ImageDocument => ({
   id,
@@ -62,9 +62,7 @@ describe("CosmosClientMock", () => {
     });
 
     test("throws for missing document", async () => {
-      expect(client.update("missing", { status: "ready" })).rejects.toThrow(
-        "not found",
-      );
+      expect(client.update("missing", { status: "ready" })).rejects.toThrow("not found");
     });
   });
 
@@ -84,9 +82,7 @@ describe("CosmosClientMock", () => {
 
     test("create throws when shouldFail is true", async () => {
       client.setShouldFail(true);
-      expect(client.create(makeDoc("fail"))).rejects.toThrow(
-        "simulated failure",
-      );
+      expect(client.create(makeDoc("fail"))).rejects.toThrow("simulated failure");
     });
 
     test("update throws when shouldFail is true", async () => {

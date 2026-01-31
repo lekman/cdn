@@ -1,9 +1,4 @@
 import { describe, expect, test } from "bun:test";
-import {
-  isExifData,
-  isImageDocument,
-  isValidStatus,
-} from "../../../src/shared/types";
 import type {
   CreateImageInput,
   DeleteResult,
@@ -11,6 +6,7 @@ import type {
   ImageDocument,
   MetadataResult,
 } from "../../../src/shared/types";
+import { isExifData, isImageDocument, isValidStatus } from "../../../src/shared/types";
 
 describe("isValidStatus", () => {
   test("returns true for 'processing'", () => {
@@ -76,34 +72,28 @@ describe("isExifData", () => {
   });
 
   test("returns false when created is wrong type", () => {
-    expect(
-      isExifData({ created: 123, location: null, camera: null }),
-    ).toBe(false);
+    expect(isExifData({ created: 123, location: null, camera: null })).toBe(false);
   });
 
   test("returns false when camera is wrong type", () => {
-    expect(
-      isExifData({ created: null, location: null, camera: 123 }),
-    ).toBe(false);
+    expect(isExifData({ created: null, location: null, camera: 123 })).toBe(false);
   });
 
   test("returns false when location has wrong shape", () => {
-    expect(
-      isExifData({ created: null, location: "bad", camera: null }),
-    ).toBe(false);
+    expect(isExifData({ created: null, location: "bad", camera: null })).toBe(false);
     expect(
       isExifData({
         created: null,
         location: { lat: "bad", lon: 1 },
         camera: null,
-      }),
+      })
     ).toBe(false);
     expect(
       isExifData({
         created: null,
         location: { lat: 1, lon: "bad" },
         camera: null,
-      }),
+      })
     ).toBe(false);
   });
 });
