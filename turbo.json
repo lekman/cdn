@@ -1,0 +1,22 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    "lint": {
+      "inputs": ["src/**", "tests/**", "biome.json"],
+      "outputLogs": "new-only"
+    },
+    "typecheck": {
+      "inputs": ["src/**", "tests/**", "tsconfig.json"],
+      "outputLogs": "new-only"
+    },
+    "test": {
+      "inputs": ["src/**", "tests/unit/**", "bunfig.toml"],
+      "outputLogs": "new-only"
+    },
+    "test:coverage": {
+      "inputs": ["src/**", "tests/unit/**", "bunfig.toml"],
+      "outputs": ["coverage/**"],
+      "outputLogs": "new-only"
+    }
+  }
+}

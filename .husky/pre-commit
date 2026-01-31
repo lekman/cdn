@@ -1,0 +1,5 @@
+# Set PATH to include Homebrew binaries
+export PATH="/opt/homebrew/bin:/usr/local/bin:$HOME/.bun/bin:$PATH"
+
+# Run quality checks (direct invocation — faster than turbo for pre-commit)
+bun run lint && bun run typecheck

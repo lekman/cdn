@@ -1,0 +1,30 @@
+{
+    "files.exclude": {
+        ".husky/_/**/*": true,
+        "**/node_modules/": true,
+        "**/dist/": true,
+        "**/build/": true,
+        "**/*.tsbuildinfo": true,
+        "**/.turbo/": true,
+        "**/coverage/": true,
+        "**/*.lcov": true,
+        "**/.env": true,
+        "**/.env.*": true,
+        "**/.env.example": false,
+        "**/.idea/": true,
+        "**/*.swp": true,
+        "**/*.swo": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/*.log": true,
+        "**/.logs/": true,
+        "**/.tmp/": true,
+        "**/.worktree/": true,
+        "**/*.local.*": true,
+        "**/package-lock.json": true,
+        "**/yarn.lock": true,
+        "**/pnpm-lock.yaml": true,
+        "**/.terraform/": true,
+        "**/*.tfstate": true
+    }
+}
