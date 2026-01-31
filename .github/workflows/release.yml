@@ -1,0 +1,42 @@
+# Automated versioning and changelog via release-please.
+# Creates or updates a release PR on every push to main using conventional commits.
+# Uses a GitHub App token to allow the release PR to trigger CI workflows.
+#
+# Required secrets:
+#   RELEASE_BOT_APP_ID     — GitHub App ID for the release bot
+#   RELEASE_BOT_PRIVATE_KEY — GitHub App private key (PEM format)
+#
+# See: https://github.com/googleapis/release-please-action
+
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: release
+  cancel-in-progress: true
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read  # read repository for conventional commit history
+    steps:
+      - name: Generate App Token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.RELEASE_BOT_APP_ID }}
+          private-key: ${{ secrets.RELEASE_BOT_PRIVATE_KEY }}
+
+      - name: Release Please
+        id: release
+        uses: googleapis/release-please-action@v4
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

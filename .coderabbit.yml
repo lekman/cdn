@@ -1,0 +1,50 @@
+language: en-GB
+tone_instructions: >-
+  Keep language short and concise. No comedy, poetry or long-winded discussions.
+  No "opinions", stick to facts. Focus on technical accuracy.
+early_access: true
+reviews:
+  profile: chill
+  auto_apply_labels: true
+  poem: false
+  auto_review:
+    drafts: true
+  finishing_touches:
+    unit_tests:
+      enabled: false
+  path_filters:
+    - "!**/node_modules/**"
+    - "!**/dist/**"
+    - "!**/bun.lock"
+    - "!**/coverage/**"
+    - "!**/infra/.terraform/**"
+  tools:
+    actionlint:
+      enabled: true
+    biome:
+      enabled: true
+    gitleaks:
+      enabled: true
+    markdownlint:
+      enabled: true
+    semgrep:
+      enabled: true
+    languagetool:
+      enabled: true
+      level: default
+      disabled_categories:
+        - TYPOS
+        - TYPOGRAPHY
+        - CASING
+      disabled_rules:
+        - EN_UNPAIRED_BRACKETS
+        - EN_UNPAIRED_QUOTES
+        - MORFOLOGIK_RULE_EN_GB
+        - MORFOLOGIK_RULE_EN_US
+        - EN_COMPOUNDS
+knowledge_base:
+  code_guidelines:
+    filePatterns:
+      - "**/CLAUDE.md"
+      - "**/docs/guides/*"
+      - "**/docs/standards/*"

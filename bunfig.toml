@@ -1,0 +1,19 @@
+[install]
+# Prefer offline resolution when possible
+prefer-offline = true
+
+[test]
+# Enable coverage by default
+coverage = true
+
+# Fail if coverage drops below thresholds
+# Function threshold lower because bun counts implicit class constructors
+coverageThreshold = { line = 0.8, function = 0.6, statement = 0.8 }
+
+# Exclude from coverage:
+# - System files (external I/O — Azure SDK, Cloudflare API)
+# - Tests
+coveragePathIgnorePatterns = [
+  "**/*.system.ts",
+  "tests/**"
+]

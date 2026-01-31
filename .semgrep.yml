@@ -1,0 +1,41 @@
+rules:
+  - id: no-secrets-in-code
+    patterns:
+      - pattern-either:
+          - pattern: |
+              $VAR = "... password ..."
+          - pattern: |
+              $VAR = "... secret ..."
+          - pattern: |
+              $VAR = "... api_key ..."
+          - pattern: |
+              $VAR = "... apikey ..."
+          - pattern: |
+              $VAR = "... api-key ..."
+    message: Potential secret or sensitive data found in code
+    languages: [typescript, javascript, json]
+    severity: ERROR
+
+  - id: no-hardcoded-credentials
+    patterns:
+      - pattern-either:
+          - pattern: |
+              password: "..."
+          - pattern: |
+              apiKey: "..."
+          - pattern: |
+              token: "..."
+    message: Hardcoded credentials detected
+    languages: [typescript, javascript, json]
+    severity: ERROR
+
+  - id: no-console-log-in-production
+    pattern: console.log(...)
+    message: Remove console.log statements before committing
+    languages: [typescript, javascript]
+    severity: WARNING
+    paths:
+      exclude:
+        - "tests/**"
+        - "*.test.ts"
+        - "scripts/**"

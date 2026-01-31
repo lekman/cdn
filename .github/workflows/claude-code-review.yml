@@ -1,0 +1,43 @@
+# Automated code review using Claude Code Action with the code-review plugin.
+# Runs on every PR (including drafts) so reviews complete before human review.
+# Does NOT run on ready_for_review — that transition is reserved for human reviewers.
+#
+# Required secrets:
+#   CLAUDE_CODE_OAUTH_TOKEN — OAuth token for Claude Code (Settings > Secrets)
+#
+# See: https://github.com/anthropics/claude-code-action
+
+name: Claude Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  claude-review:
+    name: Review
+
+    # Skip release-please PRs (version bumps only)
+    if: ${{ !startsWith(github.head_ref, 'release-please--') }}
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read        # read repository code
+      pull-requests: write  # post review comments on PRs
+      issues: read          # read linked issues for context
+      id-token: write       # OIDC token exchange for Claude Code auth
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Run Claude Code Review
+        id: claude-review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
+          plugins: 'code-review@claude-code-plugins'
+          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
