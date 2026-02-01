@@ -1,10 +1,9 @@
 import * as documentdb from "@pulumi/azure-native/documentdb";
-import * as pulumi from "@pulumi/pulumi";
 import { spec } from "../stack";
 import { cosmosAccountConfig, cosmosContainerConfig, cosmosDatabaseConfig } from "./configs";
+import { cdnResourceGroup } from "./resource-group";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
+const resourceGroupName = cdnResourceGroup.name;
 
 export const cosmosAccount = new documentdb.DatabaseAccount("cosmos", {
   ...cosmosAccountConfig(spec),

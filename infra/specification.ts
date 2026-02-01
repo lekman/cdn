@@ -10,6 +10,9 @@ export interface Spec {
   location: string;
   tags: Record<string, string>;
   ragInfraStack: string;
+  resourceGroup: {
+    name: string;
+  };
   storage: {
     accountName: string;
     containerName: string;
@@ -46,6 +49,8 @@ export interface Spec {
 }
 
 export function createSpec(env: Environment): Spec {
+  const suffix = `${env}-uksouth-001`;
+
   return {
     environment: env,
     location: "uksouth",
@@ -54,16 +59,19 @@ export function createSpec(env: Environment): Spec {
       environment: env,
       managedBy: "pulumi",
     },
-    ragInfraStack: `rag-infra/${env}`,
+    ragInfraStack: `lekman/rag-infra/${env}`,
+    resourceGroup: {
+      name: `rg-cdn-${suffix}`,
+    },
     storage: {
-      accountName: `cdn${env}sa`.replace(/-/g, ""),
+      accountName: `stcdn${env}uksouth001`,
       containerName: "images",
       skuName: "Standard_LRS",
       accessTier: "Hot",
       lifecycleDays: 7,
     },
     cosmosDb: {
-      accountName: `cdn-${env}-cosmos`,
+      accountName: `cosmos-cdn-${suffix}`,
       databaseName: "cdn",
       containerName: "images",
       partitionKeyPath: "/id",
@@ -74,13 +82,13 @@ export function createSpec(env: Environment): Spec {
       maxDeliveryCount: 1,
     },
     functionApp: {
-      appName: `cdn-${env}-func`,
-      planName: `cdn-${env}-plan`,
+      appName: `func-cdn-${suffix}`,
+      planName: "UKSouthLinuxDynamicPlan",
       runtime: "node",
-      runtimeVersion: "~4",
+      runtimeVersion: "20",
     },
     keyVault: {
-      vaultName: `cdn-${env}-kv`,
+      vaultName: `kv-cdn-${suffix}`,
       secretName: "cloudflare-api-token",
     },
     apim: {

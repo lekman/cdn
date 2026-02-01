@@ -4,7 +4,7 @@
  */
 
 import * as pulumi from "@pulumi/pulumi";
-import { createSpec, type Environment } from "./specification";
+import { createSpec, Environment } from "./specification";
 
 const validEnvs = new Set<string>(["dev", "prod"]);
 const stackName = pulumi.getStack();

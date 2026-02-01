@@ -1,15 +1,14 @@
 import * as apimanagement from "@pulumi/azure-native/apimanagement";
 import * as pulumi from "@pulumi/pulumi";
-import { spec } from "../stack";
 import { storageAccount } from "./storage";
 import { cosmosAccount } from "./cosmosdb";
+import {
+  ragResourceGroupName,
+  apimServiceName,
+  serviceBusNamespaceName,
+} from "./rag-stack";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
-const apimServiceName = ragStack.getOutput("gatewayUrl").apply((url: string) => {
-  return new URL(url).hostname.split(".")[0];
-}) as pulumi.Output<string>;
-const serviceBusNamespaceName = ragStack.getOutput("serviceBusNamespaceName") as pulumi.Output<string>;
+const resourceGroupName = ragResourceGroupName;
 
 export const namedValues = [
   new apimanagement.NamedValue("nv-cosmos-endpoint", {

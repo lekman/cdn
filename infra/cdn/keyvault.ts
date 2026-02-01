@@ -2,9 +2,9 @@ import * as keyvault from "@pulumi/azure-native/keyvault";
 import * as pulumi from "@pulumi/pulumi";
 import { spec } from "../stack";
 import { keyVaultConfig, keyVaultSecretConfig } from "./configs";
+import { cdnResourceGroup } from "./resource-group";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
+const resourceGroupName = cdnResourceGroup.name;
 const clientConfig = pulumi.output(pulumi.runtime.invoke("azure-native:authorization:getClientConfig", {}));
 
 export const keyVault = new keyvault.Vault("keyvault", {

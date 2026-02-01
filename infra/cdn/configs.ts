@@ -6,6 +6,15 @@
 
 import type { Spec } from "../specification";
 
+/** Resource group configuration for CDN-owned resources. */
+export function resourceGroupConfig(spec: Spec) {
+  return {
+    resourceGroupName: spec.resourceGroup.name,
+    location: spec.location,
+    tags: { ...spec.tags },
+  };
+}
+
 /** Storage account configuration (excludes dynamic resourceGroupName). */
 export function storageAccountConfig(spec: Spec) {
   return {
@@ -86,21 +95,6 @@ export function serviceBusQueueConfig(spec: Spec) {
     defaultMessageTimeToLive: spec.serviceBus.messageTtl,
     maxDeliveryCount: spec.serviceBus.maxDeliveryCount,
     deadLetteringOnMessageExpiration: false,
-  };
-}
-
-/** Function App plan configuration (excludes dynamic resourceGroupName). */
-export function appServicePlanConfig(spec: Spec) {
-  return {
-    name: spec.functionApp.planName,
-    location: spec.location,
-    kind: "FunctionApp",
-    sku: {
-      name: "Y1",
-      tier: "Dynamic",
-    },
-    reserved: true,
-    tags: { ...spec.tags },
   };
 }
 

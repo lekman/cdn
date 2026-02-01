@@ -1,10 +1,9 @@
 import * as storage from "@pulumi/azure-native/storage";
-import * as pulumi from "@pulumi/pulumi";
 import { spec } from "../stack";
 import { blobContainerConfig, lifecyclePolicyConfig, storageAccountConfig } from "./configs";
+import { cdnResourceGroup } from "./resource-group";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
+const resourceGroupName = cdnResourceGroup.name;
 
 const storageConfig = storageAccountConfig(spec);
 export const storageAccount = new storage.StorageAccount("storage", {

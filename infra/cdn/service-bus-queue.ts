@@ -1,11 +1,10 @@
 import * as servicebus from "@pulumi/azure-native/servicebus";
-import * as pulumi from "@pulumi/pulumi";
 import { spec } from "../stack";
 import { serviceBusQueueConfig } from "./configs";
+import { ragResourceGroupName, serviceBusNamespaceName } from "./rag-stack";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
-const namespaceName = ragStack.getOutput("serviceBusNamespaceName") as pulumi.Output<string>;
+const resourceGroupName = ragResourceGroupName;
+const namespaceName = serviceBusNamespaceName;
 
 const queueConfig = serviceBusQueueConfig(spec);
 export const serviceBusQueue = new servicebus.Queue("cdn-queue", {
