@@ -2,6 +2,10 @@
   "ignore": [
     ".tmp/**",
     ".logs/**",
-    "docs/policies/**"
+    ".worktree/**",
+    "infra/**",
+    "cdn/**",
+    "docs/policies/**",
+    "openapi/**"
   ]
 }

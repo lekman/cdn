@@ -7,16 +7,16 @@ Status overview and dependency-ordered plan for the Edge Cache CDN API.
 | # | PRD | Scope | Status |
 |---|-----|-------|--------|
 | 1 | [Shared Domain](prd.shared-domain.md) | Types, interfaces, constants, mocks | Done |
-| 2 | [Infrastructure](prd.infrastructure.md) | Bicep IaC, APIM config, Cloudflare runbook | Not started |
-| 3 | [Upload Pipeline](prd.upload-pipeline.md) | APIM policy for POST /images | Not started |
-| 4 | [Metadata Retrieval](prd.metadata-retrieval.md) | APIM policy for GET /images/{hash} | Not started |
+| 2 | [Infrastructure](prd.infrastructure.md) | Bicep IaC, APIM config, Cloudflare runbook | Done |
+| 3 | [Upload Pipeline](prd.upload-pipeline.md) | APIM policy for POST /images | Done |
+| 4 | [Metadata Retrieval](prd.metadata-retrieval.md) | APIM policy for GET /images/{hash} | Done |
 | 5 | [Metadata Extraction](prd.metadata-extraction.md) | Service Bus-triggered Function | Not started |
 | 6 | [Delete Pipeline](prd.delete-pipeline.md) | Function handler + APIM policy for DELETE /images/{hash} | Not started |
 
 ## Dependency Graph
 
 ```
-PRD 1: Shared Domain ✅
+PRD 1: Shared Domain
   │
   ├──→ PRD 6: Delete Pipeline (handler + system clients)
   │       │
@@ -134,7 +134,7 @@ Bicep IaC can be developed at any point but must be deployed before integration 
 ```
 Phase 0                Phase 1                Phase 2          Phase 3
 ────────              ─────────              ────────          ────────
-PRD 1 ✅ ──→ PRD 6 (Delete handler) ──→ PRD 3 (Upload) ──→ Integration
+PRD 1    ──→ PRD 6 (Delete handler) ──→ PRD 3 (Upload) ──→ Integration
              PRD 5 (Metadata Extract)   PRD 4 (GET)         Testing
                                         PRD 6 (APIM)
 

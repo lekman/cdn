@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Open in Warp",
+      "type": "shell",
+      "command": "open -a Warp ${workspaceFolder}",
+      "problemMatcher": []
+    }
+  ]
+}
