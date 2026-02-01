@@ -1,25 +1,30 @@
-import * as web from "@pulumi/azure-native/web";
 import * as pulumi from "@pulumi/pulumi";
+import * as web from "@pulumi/azure-native/web";
+import { getClientConfig } from "@pulumi/azure-native/authorization";
 import { spec } from "../stack";
-import { appServicePlanConfig, functionAppConfig } from "./configs";
+import { functionAppConfig } from "./configs";
 import { storageAccount } from "./storage";
 import { cosmosAccount } from "./cosmosdb";
 import { keyVault } from "./keyvault";
+import { cdnResourceGroup } from "./resource-group";
+import { serviceBusNamespaceName } from "./rag-stack";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
-const serviceBusNamespaceName = ragStack.getOutput("serviceBusNamespaceName") as pulumi.Output<string>;
+const resourceGroupName = cdnResourceGroup.name;
 
-export const appServicePlan = new web.AppServicePlan("plan", {
-  ...appServicePlanConfig(spec),
-  resourceGroupName,
-});
+// Consumption plan is auto-managed by Azure and cannot be created via ARM API
+// on MSDN subscriptions. Bootstrap via: az functionapp create --consumption-plan-location uksouth
+const serverFarmId = pulumi
+  .output(getClientConfig())
+  .apply(
+    (c) =>
+      `/subscriptions/${c.subscriptionId}/resourceGroups/${spec.resourceGroup.name}/providers/Microsoft.Web/serverfarms/${spec.functionApp.planName}`,
+  );
 
 const funcConfig = functionAppConfig(spec);
 export const functionApp = new web.WebApp("func", {
   ...funcConfig,
   resourceGroupName,
-  serverFarmId: appServicePlan.id,
+  serverFarmId,
   siteConfig: {
     ...funcConfig.siteConfig,
     appSettings: [
