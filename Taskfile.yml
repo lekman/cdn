@@ -256,6 +256,40 @@ tasks:
           echo -e "${GREEN}✓${NC} All repository secrets configured"
         fi
 
+  clear:
+    desc: "Remove caches and temp files, reinstall dependencies"
+    aliases: [cls]
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+
+        GREEN='\033[0;32m'
+        CYAN='\033[0;36m'
+        NC='\033[0m'
+
+        echo -e "${CYAN}Clearing caches and temp files${NC}"
+
+        for dir in .tmp .logs .turbo coverage dist build node_modules/.cache; do
+          if [ -d "$dir" ]; then
+            rm -rf "$dir"
+            echo -e "  ${GREEN}removed${NC} $dir"
+          fi
+        done
+
+        # Remove TypeScript build info
+        find . -name '*.tsbuildinfo' -not -path './node_modules/*' -delete 2>/dev/null && \
+          echo -e "  ${GREEN}removed${NC} *.tsbuildinfo" || true
+
+        # Remove node_modules to guarantee clean dependency tree
+        if [ -d "node_modules" ]; then
+          rm -rf node_modules
+          echo -e "  ${GREEN}removed${NC} node_modules"
+        fi
+
+        echo ""
+      - task: install
+
   default:
     desc: "Show available cdn tasks"
     aliases: [help, h]
@@ -275,6 +309,7 @@ tasks:
         echo "────────────────────────────────────────────────────────────────────────────────"
         echo -e "${BOLD}Setup:${NC}"
         echo -e "  ${GREEN}task install${NC}                     ${YELLOW}i${NC}         Install/upgrade required tools"
+        echo -e "  ${GREEN}task clear${NC}                       ${YELLOW}cls${NC}       Remove caches, reinstall dependencies"
         echo -e "  ${GREEN}task setup:repo${NC}                  ${YELLOW}setup${NC}     Configure GitHub repo secrets"
         echo ""
         echo -e "${BOLD}Development:${NC}"
@@ -287,6 +322,10 @@ tasks:
         echo ""
         echo -e "${BOLD}Security:${NC}"
         echo -e "  ${GREEN}task security:scan${NC}               ${YELLOW}s:s${NC}       Run semgrep security scanner"
+        echo ""
+        echo -e "${BOLD}Claude Code:${NC}"
+        echo -e "  ${GREEN}task claude:plan${NC}                 ${YELLOW}plan${NC}      Open latest Claude plan in IDE"
+        echo -e "  ${GREEN}task claude:task${NC}                 ${YELLOW}ctask${NC}     Open latest Claude task in IDE"
         echo ""
         echo -e "${BOLD}Task Libraries:${NC}"
         echo -e "  ${GREEN}task git:<command>${NC}                         Git & GitHub operations"
@@ -361,6 +400,110 @@ tasks:
         echo ""
         echo -e "${CYAN}Coverage report generated:${NC}"
         echo -e "  LCOV: ${GREEN}coverage/lcov.info${NC}"
+
+  ide:open:
+    desc: "Open a file in the active IDE (detects running editor)"
+    internal: true
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        FILE="{{.FILE}}"
+        if [ -z "$FILE" ]; then
+          echo "Error: FILE variable not set"
+          exit 1
+        fi
+
+        # Known CLI paths (macOS installs to /usr/local/bin)
+        CLI_INSIDERS="/usr/local/bin/code-insiders"
+        CLI_CODE="/usr/local/bin/code"
+        CLI_CURSOR="/usr/local/bin/cursor"
+
+        # Detect running IDE from process list (most specific first)
+        IDE=""
+        if pgrep -f "Code - Insiders" &>/dev/null && [ -x "$CLI_INSIDERS" ]; then
+          IDE="$CLI_INSIDERS"
+        elif pgrep -f "Cursor Helper" &>/dev/null && [ -x "$CLI_CURSOR" ]; then
+          IDE="$CLI_CURSOR"
+        elif pgrep -f "Visual Studio Code.app" &>/dev/null && [ -x "$CLI_CODE" ]; then
+          IDE="$CLI_CODE"
+        fi
+
+        # Fall back to whatever CLI is available
+        if [ -z "$IDE" ]; then
+          for cmd in "$CLI_INSIDERS" "$CLI_CURSOR" "$CLI_CODE"; do
+            if [ -x "$cmd" ]; then
+              IDE="$cmd"
+              break
+            fi
+          done
+        fi
+
+        if [ -n "$IDE" ]; then
+          "$IDE" --reuse-window "$FILE"
+        elif [ -n "${EDITOR:-}" ]; then
+          $EDITOR "$FILE"
+        else
+          open "$FILE"
+        fi
+
+  claude:plan:
+    desc: "Open the latest Claude Code plan in the IDE"
+    aliases: [plan]
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        PLANS_DIR="$HOME/.claude/plans"
+        if [ ! -d "$PLANS_DIR" ]; then
+          echo "No plans directory found at $PLANS_DIR"
+          exit 1
+        fi
+        LATEST=$(ls -t "$PLANS_DIR"/*.md 2>/dev/null | head -1)
+        if [ -z "$LATEST" ]; then
+          echo "No plan files found"
+          exit 1
+        fi
+        echo "Opening: $LATEST"
+      - task: ide:open
+        vars:
+          FILE:
+            sh: ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1
+
+  claude:task:
+    desc: "Open the latest Claude Code task in the IDE"
+    aliases: [ctask]
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        TASKS_DIR="$HOME/.claude/tasks"
+        if [ ! -d "$TASKS_DIR" ]; then
+          echo "No tasks directory found at $TASKS_DIR"
+          exit 1
+        fi
+        LATEST_DIR=$(ls -dt "$TASKS_DIR"/*/ 2>/dev/null | head -1)
+        if [ -z "$LATEST_DIR" ]; then
+          echo "No task directories found"
+          exit 1
+        fi
+        # Look for .md files; fall back to non-hidden files
+        LATEST=$(ls -t "$LATEST_DIR"*.md 2>/dev/null | head -1)
+        if [ -z "$LATEST" ]; then
+          LATEST=$(find "$LATEST_DIR" -maxdepth 1 -not -name '.*' -type f 2>/dev/null | head -1)
+        fi
+        if [ -z "$LATEST" ]; then
+          echo "No files found in $LATEST_DIR"
+          echo "Task dirs contain only lock files — tasks may not have persisted content yet"
+          exit 1
+        fi
+        echo "Opening: $LATEST"
+      - task: ide:open
+        vars:
+          FILE:
+            sh: |
+              DIR=$(ls -dt "$HOME/.claude/tasks"/*/ 2>/dev/null | head -1)
+              ls -t "$DIR"*.md 2>/dev/null | head -1 || find "$DIR" -maxdepth 1 -not -name '.*' -type f 2>/dev/null | head -1
 
   quality:
     desc: "Run all quality checks (lint, typecheck, security, test)"

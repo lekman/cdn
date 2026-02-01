@@ -208,6 +208,7 @@ task quality      # Run all quality checks
 | [Quality Assurance](QA.md) | Contributors | Test strategy, TDD workflow, coverage targets |
 | [Security](SECURITY.md) | Security researchers | Vulnerability reporting, threat model |
 | [Requirements](requirements/EPIC.md) | Stakeholders | Product Requirements Document |
+| [Policy Guides](policies/README.md) | Contributors | Architecture, testing, and TypeScript pattern references |
 
 ## Contributing
 

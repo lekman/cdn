@@ -1,6 +1,7 @@
 {
   "ignore": [
     ".tmp/**",
-    ".logs/**"
+    ".logs/**",
+    "docs/policies/**"
   ]
 }
