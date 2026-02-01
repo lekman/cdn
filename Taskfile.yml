@@ -341,7 +341,8 @@ tasks:
         echo -e "  ${GREEN}task claude:plan${NC}                 ${YELLOW}plan${NC}      Open latest Claude plan in IDE"
         echo ""
         echo -e "${BOLD}Utilities:${NC}"
-        echo -e "  ${GREEN}task warp${NC}                                  Open repo in Warp terminal"
+        echo -e "  ${GREEN}task warp${NC}                        ${YELLOW}w${NC}         Open repo in Warp terminal"
+        echo -e "  ${GREEN}task warp:claude${NC}                 ${YELLOW}wc${NC}        Open Claude Code in Warp (yellow tab)"
         echo ""
         echo -e "${BOLD}Task Libraries:${NC}"
         echo -e "  ${GREEN}task git:<command>${NC}                         Git & GitHub operations"
@@ -510,11 +511,50 @@ tasks:
         fi
 
   warp:
-    desc: "Open repo in Warp terminal"
+    desc: "Open repo in Warp terminal (blue tab)"
+    aliases: [w, terminal]
     silent: true
     cmds:
       - |
-        open -a Warp "{{.ROOT_DIR}}"
+        set -euo pipefail
+        NAME="{{.PROJECT_NAME}}-terminal"
+        mkdir -p "$HOME/.warp/launch_configurations"
+        printf '%s\n' \
+          "---" \
+          "name: $NAME" \
+          "windows:" \
+          "  - tabs:" \
+          "      - title: {{.PROJECT_NAME}}" \
+          "        color: blue" \
+          "        layout:" \
+          "          cwd: \"{{.ROOT_DIR}}\"" \
+          "          is_focused: true" \
+          > "$HOME/.warp/launch_configurations/$NAME.yml"
+        open "warp://launch/$NAME"
+
+  warp:claude:
+    desc: "Open Claude Code in Warp (yellow tab)"
+    aliases: [wc]
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        NAME="{{.PROJECT_NAME}}-claude"
+        mkdir -p "$HOME/.warp/launch_configurations"
+        printf '%s\n' \
+          "---" \
+          "name: $NAME" \
+          "windows:" \
+          "  - tabs:" \
+          "      - title: Claude" \
+          "        color: yellow" \
+          "        layout:" \
+          "          cwd: \"{{.ROOT_DIR}}\"" \
+          "          commands:" \
+          "            - exec: claude -c" \
+          "          is_focused: true" \
+          > "$HOME/.warp/launch_configurations/$NAME.yml"
+        open "warp://launch/$NAME"
 
 
   quality:
