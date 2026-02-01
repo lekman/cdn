@@ -1,13 +1,12 @@
 {
-  "name": "@lekman/cdn-infra",
+  "name": "@lekman/cdn-policy-pack",
   "version": "0.1.0",
-  "description": "Pulumi IaC for Edge Cache CDN Azure infrastructure",
   "private": true,
   "main": "index.ts",
   "dependencies": {
-    "@pulumi/pulumi": "^3.0.0",
+    "@pulumi/policy": "^1.0.0",
     "@pulumi/azure-native": "^2.0.0",
-    "@pulumi/policy": "^1.0.0"
+    "@pulumi/pulumi": "^3.0.0"
   },
   "devDependencies": {
     "typescript": "^5.7.3"

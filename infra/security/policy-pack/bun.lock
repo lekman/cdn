@@ -3,7 +3,7 @@
   "configVersion": 1,
   "workspaces": {
     "": {
-      "name": "@lekman/cdn-infra",
+      "name": "@lekman/cdn-policy-pack",
       "dependencies": {
         "@pulumi/azure-native": "^2.0.0",
         "@pulumi/policy": "^1.0.0",
