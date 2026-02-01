@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.0](https://github.com/lekman/cdn/compare/cdn-v1.2.0...cdn-v1.3.0) (2026-02-01)
+
+
+### Features
+
+* **skill:** add 2-phase triage and fix workflow to coderabbit skill ([0887c8c](https://github.com/lekman/cdn/commit/0887c8c4e4aa275954152e386aa966a988c1698a))
+
 ## [1.2.0](https://github.com/lekman/cdn/compare/cdn-v1.1.0...cdn-v1.2.0) (2026-02-01)
 
 
