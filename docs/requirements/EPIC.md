@@ -1,9 +1,9 @@
 # Product Requirements Document: Edge Cache CDN API
 
-**Version:** 1.2
-**Author:** Tobias Lekman
-**Date:** 31 January 2026
-**Status:** Draft
+- **Version:** 1.2
+- **Author:** Tobias Lekman
+- **Date:** 31 January 2026
+- **Status:** Draft
 
 ---
 

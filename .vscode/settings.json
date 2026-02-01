@@ -25,7 +25,18 @@
         "**/yarn.lock": true,
         "**/pnpm-lock.yaml": true,
         "**/.terraform/": true,
-        "**/*.tfstate": true
+        "**/*.tfstate": true,
+        "CLAUDE.md": true,
+        "*.lock": true,
+        "*config.json": true,
+        ".pii": true,
+        ".*.yml": true,
+        ".*.json": true,
+        "turbo.json": true,
+        ".gitignore": true,
+        "biome.json": true,
+        "bunfig.toml": true,
+        "LICENSE": true
     },
     "snyk.advanced.organization": "514894ab-6c44-4cc6-8d04-36e649121974",
     "snyk.advanced.autoSelectOrganization": true
