@@ -81,6 +81,9 @@ tasks:
         task brew:install:pkg PACKAGE="biome"
         task brew:install:pkg PACKAGE="azure-cli"
 
+        # Install Claude Viz globally via npm
+        npm install -g claude-viz &>/dev/null
+
         # Install project dependencies
         echo ""
         echo -e "${GREEN}Installing project dependencies...${NC}"
@@ -317,6 +320,8 @@ tasks:
         echo -e "  ${GREEN}task typecheck${NC}                   ${YELLOW}tc${NC}        Run TypeScript type checking"
         echo -e "  ${GREEN}task test${NC}                        ${YELLOW}t${NC}         Run tests"
         echo -e "  ${GREEN}task test:coverage${NC}               ${YELLOW}cov${NC}       Run tests with coverage report"
+        echo -e "  ${GREEN}task test:iq${NC}                     ${YELLOW}iq${NC}        IQ: deployed resources match spec"
+        echo -e "  ${GREEN}task test:oq${NC}                     ${YELLOW}oq${NC}        OQ: services operational/healthy"
         echo -e "  ${GREEN}task quality${NC}                     ${YELLOW}q${NC}         Run all quality checks"
         echo ""
         echo -e "${BOLD}Security:${NC}"
@@ -409,6 +414,38 @@ tasks:
         echo -e "${CYAN}Coverage report generated:${NC}"
         echo -e "  LCOV: ${GREEN}coverage/lcov.info${NC}"
 
+  test:iq:
+    desc: "Run IQ tests: deployed resources match spec (usage: task test:iq -- dev)"
+    aliases: [iq]
+    silent: true
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        CYAN='\033[0;36m'
+        NC='\033[0m'
+        echo -e "${GREEN}Running IQ tests against ${CYAN}{{.STACK}}${NC}"
+        STACK="{{.STACK}}" bun test tests/iq/
+
+  test:oq:
+    desc: "Run OQ tests: services operational and healthy (usage: task test:oq -- dev)"
+    aliases: [oq]
+    silent: true
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        CYAN='\033[0;36m'
+        NC='\033[0m'
+        echo -e "${GREEN}Running OQ tests against ${CYAN}{{.STACK}}${NC}"
+        STACK="{{.STACK}}" bun test tests/oq/
+
   ide:open:
     desc: "Open a file in the active IDE (detects running editor)"
     internal: true
@@ -456,27 +493,12 @@ tasks:
         fi
 
   claude:plan:
-    desc: "Open the latest Claude Code plan in the IDE"
+    desc: "Open the latest Claude Code plan"
     aliases: [plan]
     silent: true
     cmds:
-      - |
-        set -euo pipefail
-        PLANS_DIR="$HOME/.claude/plans"
-        if [ ! -d "$PLANS_DIR" ]; then
-          echo "No plans directory found at $PLANS_DIR"
-          exit 1
-        fi
-        LATEST=$(ls -t "$PLANS_DIR"/*.md 2>/dev/null | head -1)
-        if [ -z "$LATEST" ]; then
-          echo "No plan files found"
-          exit 1
-        fi
-        echo "Opening: $LATEST"
-      - task: ide:open
-        vars:
-          FILE:
-            sh: ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1
+      - claude-viz &>/dev/null &
+
 
   quality:
     desc: "Run all quality checks (lint, typecheck, security, test)"
