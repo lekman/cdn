@@ -234,6 +234,11 @@ jobs:
           tenant-id: ${{ vars.ARM_TENANT_ID }}
           subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
 
+      - name: Bootstrap consumption plan
+        uses: ./.github/actions/bootstrap
+        with:
+          stack: dev
+
       - name: Deploy with Pulumi
         uses: pulumi/actions@v6
         with:

@@ -1,0 +1,59 @@
+# Bootstrap Azure consumption plan for Function App.
+# MSDN subscriptions cannot create App Service Plans via ARM API,
+# so the Function App must be pre-created via Azure CLI.
+# Idempotent — skips if already exists or resource group is missing.
+#
+# Requires: az CLI already logged in.
+
+name: Bootstrap Consumption Plan
+description: Ensure Azure Function App and consumption plan exist before Pulumi deploy
+
+inputs:
+  stack:
+    description: 'Pulumi stack name (dev or prod)'
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Bootstrap consumption plan
+      shell: bash
+      run: |
+        STACK="${{ inputs.stack }}"
+
+        case "$STACK" in
+          dev)
+            RG="rg-cdn-dev-uksouth-001"
+            FUNC="func-cdn-dev-uksouth-001"
+            SA="stcdndevuksouth001"
+            ;;
+          prod)
+            RG="rg-cdn-prod-uksouth-001"
+            FUNC="func-cdn-prod-uksouth-001"
+            SA="stcdnproduksouth001"
+            ;;
+          *)
+            echo "Unknown stack: $STACK"
+            exit 1
+            ;;
+        esac
+
+        # Skip if resource group doesn't exist yet (first deploy)
+        if ! az group show --name "$RG" &>/dev/null 2>&1; then
+          echo "Resource group $RG does not exist yet — skipping bootstrap"
+          exit 0
+        fi
+
+        if az functionapp show --name "$FUNC" --resource-group "$RG" &>/dev/null 2>&1; then
+          echo "Function app $FUNC already exists"
+        else
+          echo "Creating function app (bootstraps consumption plan)..."
+          az functionapp create \
+            --name "$FUNC" \
+            --resource-group "$RG" \
+            --storage-account "$SA" \
+            --consumption-plan-location uksouth \
+            --runtime node --runtime-version 20 \
+            --functions-version 4 --os-type Linux \
+            --assign-identity '[system]'
+        fi
