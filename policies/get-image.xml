@@ -1,0 +1,112 @@
+<policies>
+  <inbound>
+    <base />
+
+    <!-- WBS 1: Path Parameter Extraction -->
+    <!-- Extract {hash} from URL path /cdn/v1/images/{hash} -->
+    <set-variable name="hash" value="@(context.Request.MatchedParameters[&quot;hash&quot;])" />
+
+    <!-- Validate hash: must be exactly 43-character base64url string [A-Za-z0-9_-]{43} -->
+    <choose>
+      <when condition="@{
+        var hash = (string)context.Variables[&quot;hash&quot;];
+        if (hash == null || hash.Length != 43) return true;
+        var regex = new System.Text.RegularExpressions.Regex(&quot;^[A-Za-z0-9_-]{43}$&quot;);
+        return !regex.IsMatch(hash);
+      }">
+        <return-response>
+          <set-status code="400" reason="Bad Request" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error": "Invalid hash format"}</set-body>
+        </return-response>
+      </when>
+    </choose>
+
+    <!-- WBS 2: Cosmos DB Point-Read -->
+    <!-- GET document by id + partition key for optimal single-partition query -->
+    <send-request mode="new" response-variable-name="cosmosResponse" timeout="10" ignore-error="false">
+      <set-url>@($"{{{{cosmos-endpoint}}}}/dbs/cdn/colls/images/docs/{context.Variables["hash"]}")</set-url>
+      <set-method>GET</set-method>
+      <set-header name="x-ms-version" exists-action="override">
+        <value>2018-12-31</value>
+      </set-header>
+      <set-header name="x-ms-documentdb-partitionkey" exists-action="override">
+        <value>@($"[\"{context.Variables["hash"]}\"]")</value>
+      </set-header>
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <authentication-managed-identity resource="https://cosmos.azure.com" />
+    </send-request>
+  </inbound>
+
+  <backend>
+    <base />
+  </backend>
+
+  <outbound>
+    <base />
+
+    <!-- WBS 3: Response Construction -->
+    <choose>
+      <!-- Document found: return 200 with full Cosmos document -->
+      <when condition="@(((IResponse)context.Variables[&quot;cosmosResponse&quot;]).StatusCode == 200)">
+        <return-response>
+          <set-status code="200" reason="OK" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-header name="Cache-Control" exists-action="override">
+            <value>no-cache</value>
+          </set-header>
+          <set-body>@(((IResponse)context.Variables["cosmosResponse"]).Body.As&lt;string&gt;())</set-body>
+        </return-response>
+      </when>
+      <!-- Document not found: return 404 -->
+      <when condition="@(((IResponse)context.Variables[&quot;cosmosResponse&quot;]).StatusCode == 404)">
+        <return-response>
+          <set-status code="404" reason="Not Found" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-header name="Cache-Control" exists-action="override">
+            <value>no-cache</value>
+          </set-header>
+          <set-body>@{
+            var hash = (string)context.Variables["hash"];
+            return new JObject(
+              new JProperty("error", "Image not found"),
+              new JProperty("hash", hash)
+            ).ToString();
+          }</set-body>
+        </return-response>
+      </when>
+      <!-- Unexpected Cosmos response: return 500 -->
+      <otherwise>
+        <return-response>
+          <set-status code="500" reason="Internal Server Error" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-header name="Cache-Control" exists-action="override">
+            <value>no-cache</value>
+          </set-header>
+          <set-body>{"error": "An internal error occurred"}</set-body>
+        </return-response>
+      </otherwise>
+    </choose>
+  </outbound>
+
+  <on-error>
+    <base />
+    <return-response>
+      <set-status code="500" reason="Internal Server Error" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"error": "An internal error occurred"}</set-body>
+    </return-response>
+  </on-error>
+</policies>
