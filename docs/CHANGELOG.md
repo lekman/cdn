@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.3.0](https://github.com/lekman/cdn/compare/cdn-v1.2.0...cdn-v1.3.0) (2026-02-01)
+
+
+### Features
+
+* **github-mcp:** add configuration script for GitHub MCP server with 1Password integration ([e9c4fea](https://github.com/lekman/cdn/commit/e9c4feacd7c15f86d6fdd97019077ee83bd0b081))
+* **skill:** add 2-phase triage and fix workflow to coderabbit skill ([0887c8c](https://github.com/lekman/cdn/commit/0887c8c4e4aa275954152e386aa966a988c1698a))
+* **skill:** add Taskfile development guidelines and best practices ([524b589](https://github.com/lekman/cdn/commit/524b589ba762b915a44efeb234e6748a6c7be88e))
+
+
+### Bug Fixes
+
+* **ci:** add bootstrap step for Azure consumption plan in CI/CD ([25eb717](https://github.com/lekman/cdn/commit/25eb717a68d0635f363b5cbff2e5ff15e3ac2f4d))
+
 ## [1.2.0](https://github.com/lekman/cdn/compare/cdn-v1.1.0...cdn-v1.2.0) (2026-02-01)
 
 
