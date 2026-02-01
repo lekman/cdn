@@ -80,13 +80,51 @@ docs/
   SECURITY.md          # Security policy and threat model
 ```
 
-### System File Convention
+### Clean Architecture Rules
 
-Files with external I/O (Azure SDK, Cloudflare API) MUST use the `*.system.ts` suffix. These are excluded from coverage in `bunfig.toml`.
+These rules are non-negotiable. They enforce testability, separation of concerns, and maintainability across the codebase.
 
-### Dependency Injection Pattern
+#### Architecture Layers
 
-Functions MUST accept dependencies through an options/deps object for testability. Do not instantiate SDK clients inside function handlers.
+Dependencies point inward. Inner layers MUST NOT depend on outer layers.
+
+```
+Business Logic (inner)  — Pure functions, domain logic, validation
+  ↓ depends on
+Interface (boundary)    — Contracts between layers (I{Name} interfaces)
+  ↑ implemented by
+System Implementation (outer) — External I/O (*.system.ts files)
+```
+
+#### System File Convention
+
+Files with external I/O (Azure SDK, Cloudflare API, file system, network) MUST use the `*.system.ts` suffix. These files:
+
+- Are excluded from coverage in `bunfig.toml`
+- MUST contain only thin wrappers around external calls
+- MUST NOT contain business logic, validation, or branching
+- MUST implement a corresponding interface
+
+```
+src/shared/
+  blob-interface.ts       # IBlobClient — contract definition
+  blob.system.ts          # BlobClient implements IBlobClient — Azure SDK calls
+  cloudflare-interface.ts # ICloudflareClient — contract definition
+  cloudflare.system.ts    # CloudflareClient implements ICloudflareClient — API calls
+```
+
+#### Interface-Based Boundaries
+
+Every external dependency MUST have an interface contract:
+
+- Interface files use `{name}-interface.ts` naming
+- Interfaces use `I` prefix: `ICosmosClient`, `IBlobClient`, `ICloudflareClient`
+- Business logic depends on the interface, never on the system implementation
+- System implementations (`*.system.ts`) implement the interface
+
+#### Dependency Injection
+
+Functions and classes MUST accept dependencies through an options/deps object. Do not instantiate SDK clients inside function handlers.
 
 ```typescript
 // Correct: dependencies injected
@@ -100,6 +138,72 @@ export async function handleDelete(hash: string) {
   const cosmos = new CosmosClient(); // VIOLATION
 }
 ```
+
+For classes, use constructor injection with an exported singleton default:
+
+```typescript
+// In handler.ts (business logic)
+import type { IBlobClient } from "./blob-interface";
+import { defaultBlobClient } from "./blob.system";
+
+export function createHandler(deps?: { blob: IBlobClient }) {
+  const blob = deps?.blob ?? defaultBlobClient;
+  // ...
+}
+```
+
+#### Mock Naming Convention
+
+Mock implementations MUST follow `tests/mocks/{name}-mock.ts` naming and implement the corresponding interface:
+
+```
+tests/mocks/
+  cosmos-mock.ts      # CosmosClientMock implements ICosmosClient
+  blob-mock.ts        # BlobClientMock implements IBlobClient
+  cloudflare-mock.ts  # CloudflareClientMock implements ICloudflareClient
+```
+
+Mocks MUST support:
+- State setup methods (e.g., `setDocument()`, `setBlob()`)
+- Failure simulation (e.g., `setShouldFail()`)
+- State reset (e.g., `clear()`)
+
+#### Module Folder Organization
+
+When 5 or more related files share a common prefix, group them into a module folder with an `index.ts` barrel export:
+
+```
+# Before (flat, 5+ related files):
+src/shared/auth-interface.ts
+src/shared/auth.system.ts
+src/shared/auth-types.ts
+src/shared/auth-validator.ts
+src/shared/auth-handler.ts
+
+# After (module folder):
+src/shared/auth/
+  index.ts              # Public API re-exports
+  auth-interface.ts
+  auth.system.ts
+  auth-types.ts
+  auth-validator.ts
+  auth-handler.ts
+```
+
+#### Violation Checklist
+
+Code reviews and automated analysis MUST flag these violations:
+
+| Violation | Rule |
+|-----------|------|
+| System call in business logic | Extract to `*.system.ts` behind an interface |
+| Missing interface for external dep | Create `{name}-interface.ts` with `I{Name}` contract |
+| Hardcoded dependency in handler | Accept via deps parameter with DI |
+| Business logic in `*.system.ts` | Move logic to a pure module, keep system file thin |
+| Mock not implementing interface | Mock class MUST implement `I{Name}` |
+| 5+ related files without folder | Group into module folder with `index.ts` |
+| API named after vendor/tool | Name by business capability, not implementation (e.g., `ISecretStore` not `IOnePasswordClient`) |
+| Shared mock in describe scope | Create new mock instance inside each `test()` block |
 
 ## Code Style Rules
 
@@ -159,6 +263,34 @@ Coverage exclusions:
 - Use `describe()` blocks to group related tests
 - Use `test()` (not `it()`) for individual test cases
 - Import from `bun:test`: `describe`, `expect`, `test`, `beforeEach`, `mock`
+
+### Atomic Tests
+
+Tests MUST be isolated and safe for parallel execution. These rules are non-negotiable:
+
+- Create new mock instances inside each `test()` block — never share mocks at `describe` scope via `let`
+- Do NOT use `mock.module()` for internal code — use dependency injection instead
+- Always pass explicit mock dependencies in tests — never rely on default singleton parameters
+- Tests MUST pass both individually (`bun test path/to/file.test.ts`) and in the full suite (`bun test`)
+
+```typescript
+// Wrong: shared mock causes race conditions in parallel execution
+describe("handler", () => {
+  let mockCosmos: CosmosClientMock; // shared across tests
+  beforeEach(() => { mockCosmos = new CosmosClientMock(); });
+  test("reads doc", async () => { /* uses shared mockCosmos */ });
+});
+
+// Correct: isolated mock per test
+describe("handler", () => {
+  test("reads doc", async () => {
+    const mockCosmos = new CosmosClientMock(); // scoped to this test
+    mockCosmos.setDocument("abc", testDoc);
+    const result = await handleGet("abc", { cosmos: mockCosmos });
+    expect(result).toEqual(testDoc);
+  });
+});
+```
 
 ## Security Rules
 
@@ -258,3 +390,15 @@ jobs:
 | [QA](docs/QA.md) | Test strategy, TDD workflow, coverage targets |
 | [Security](docs/SECURITY.md) | Vulnerability reporting, threat model, CIA triad |
 | [Requirements](docs/requirements/EPIC.md) | Product Requirements Document |
+
+### Reference Guides
+
+These guides provide patterns, examples, and step-by-step instructions that expand on the hard rules above. Read them when implementing new features or refactoring existing code.
+
+| Guide | Content |
+|-------|---------|
+| [Clean Architecture](docs/guides/clean-architecture.md) | Language-agnostic clean architecture principles, common patterns (repository, service, gateway, strategy), folder organization |
+| [Clean Architecture — TypeScript](docs/guides/clean-architecture-typescript.md) | `*.system.ts` convention, interface-based DI, namespace API pattern, step-by-step refactoring process, coverage configuration |
+| [TDD — TypeScript](docs/guides/tdd-typescript.md) | Bun test framework, assertions, async testing, mocking, file system testing, test factories, common pitfalls |
+| [TypeScript Patterns](docs/guides/typescript-patterns.md) | Bounded context folder structure, business capability naming, class-based exports, barrel exports, atomic tests, unit vs integration test boundaries |
+| [Refactoring — TypeScript](docs/guides/refactoring-typescript.md) | Step-by-step refactoring from mixed concerns to clean boundaries, migration checklist, anti-patterns |
