@@ -1,0 +1,14 @@
+{
+    "recommendations": [
+        "oven.bun-vscode",
+        "anthropic.claude-code",
+        "coderabbit.coderabbit-vscode",
+        "bierner.github-markdown-preview",
+        "yzhang.markdown-all-in-one",
+        "mermaidchart.vscode-mermaid-chart",
+        "42crunch.vscode-openapi",
+        "esbenp.prettier-vscode",
+        "snyk-security.snyk-vulnerability-scanner",
+        "amodio.toggle-excluded-files"
+    ]
+}
