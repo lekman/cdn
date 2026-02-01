@@ -42,13 +42,20 @@ export function createSpec(env: Environment) {
 
 ### Naming Rules
 
-| Prefix | Resource Type | Example |
-|--------|---------------|---------|
-| `rg-` | Resource Group | `rg-rag-dev-uksouth-001` |
-| `apim-` | API Management | `apim-rag-dev-uksouth-001` |
-| `sb-` | Service Bus | `sb-rag-dev-uksouth-001` |
-| `log-` | Log Analytics | `log-rag-dev-uksouth-001` |
-| `budget-` | Budget | `budget-rag-dev-uksouth-001` |
+| Prefix | Resource Type | RAG Example | CDN Example |
+|--------|---------------|-------------|-------------|
+| `rg-` | Resource Group | `rg-rag-dev-uksouth-001` | `rg-cdn-dev-uksouth-001` |
+| `st` | Storage Account | — | `stcdndevuksouth001` |
+| `cosmos-` | Cosmos DB | — | `cosmos-cdn-dev-uksouth-001` |
+| `kv-` | Key Vault | — | `kv-cdn-dev-uksouth-001` |
+| `func-` | Function App | — | `func-cdn-dev-uksouth-001` |
+| `plan-` | App Service Plan | — | `plan-cdn-dev-uksouth-001` |
+| `apim-` | API Management | `apim-rag-dev-uksouth-001` | — |
+| `sb-` | Service Bus | `sb-rag-dev-uksouth-001` | — |
+| `log-` | Log Analytics | `log-rag-dev-uksouth-001` | — |
+| `budget-` | Budget | `budget-rag-dev-uksouth-001` | — |
+
+Storage accounts cannot contain hyphens (Azure constraint, max 24 chars, lowercase only).
 
 All tags must include `project`, `environment`, and `managedBy`.
 

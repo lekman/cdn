@@ -10,7 +10,7 @@ Images are stored by SHA-256 hash — the same image uploaded twice returns the 
 
 ## API
 
-Full specification: [`openapi/v1/cdn-api.json`](../openapi/v1/cdn-api.json)
+[![Edge Cache CDN API v1.0.0](https://badges.ws/badge/Edge_Cache_CDN_API-v1.0.0-green?logo=openapiinitiative)](https://lekman.github.io/cdn/)
 
 Authentication: mTLS (client certificate) + subscription key header (`Ocp-Apim-Subscription-Key`).
 

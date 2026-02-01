@@ -32,6 +32,32 @@ vars:
   PROJECT_NAME: "cdn"
 
 tasks:
+  brew:install:
+    desc: Installs or upgrades Homebrew
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        if ! command -v brew &>/dev/null; then
+          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        else
+          brew update &>/dev/null;
+        fi
+    
+  brew:install:pkg:
+    desc: Installs or upgrades a Homebrew package
+    silent: true
+    vars:
+      PACKAGE: '{{.PACKAGE}}'
+    cmds:
+      - |
+        set -euo pipefail
+        if brew list "{{.PACKAGE}}" &>/dev/null; then
+          brew upgrade "{{.PACKAGE}}"
+        else
+          brew install "{{.PACKAGE}}"
+        fi
+
   install:
     desc: "Install/upgrade required development tools"
     aliases: [i]
@@ -47,62 +73,26 @@ tasks:
         NC='\033[0m'
 
         echo -e "${CYAN}Installing Development Tools${NC}"
-        echo "---"
-
-        # Check if Homebrew is installed
-        if ! command -v brew &>/dev/null; then
-          echo -e "${RED}Error:${NC} Homebrew is not installed"
-          echo "Install from: https://brew.sh"
-          exit 1
-        fi
-
-        # Install or upgrade bun
-        echo -e "${GREEN}Checking bun...${NC}"
-        if brew list oven-sh/bun/bun &>/dev/null; then
-          echo -e "${YELLOW}Upgrading bun...${NC}"
-          brew upgrade oven-sh/bun/bun
-        else
-          echo -e "${YELLOW}Installing bun...${NC}"
-          brew install oven-sh/bun/bun
-        fi
-
-        # Install or upgrade go-task
-        echo -e "${GREEN}Checking go-task...${NC}"
-        if brew list go-task &>/dev/null; then
-          echo -e "${YELLOW}Upgrading go-task...${NC}"
-          brew upgrade go-task
-        else
-          echo -e "${YELLOW}Installing go-task...${NC}"
-          brew install go-task
-        fi
-
-        # Install or upgrade semgrep
-        echo -e "${GREEN}Checking semgrep...${NC}"
-        if brew list semgrep &>/dev/null; then
-          echo -e "${YELLOW}Upgrading semgrep...${NC}"
-          brew upgrade semgrep
-        else
-          echo -e "${YELLOW}Installing semgrep...${NC}"
-          brew install semgrep
-        fi
-
-        # Install or upgrade pulumi
-        echo -e "${GREEN}Checking pulumi...${NC}"
-        if brew list pulumi &>/dev/null; then
-          echo -e "${YELLOW}Upgrading pulumi...${NC}"
-          brew upgrade pulumi
-        else
-          echo -e "${YELLOW}Installing pulumi...${NC}"
-          brew install pulumi
-        fi
+        task brew:install
+        task brew:install:pkg PACKAGE="oven-sh/bun/bun"
+        task brew:install:pkg PACKAGE="go-task"
+        task brew:install:pkg PACKAGE="semgrep"
+        task brew:install:pkg PACKAGE="pulumi"
+        task brew:install:pkg PACKAGE="biome"
+        task brew:install:pkg PACKAGE="azure-cli"
 
         # Install project dependencies
         echo ""
         echo -e "${GREEN}Installing project dependencies...${NC}"
         bun install
 
-        echo ""
-        echo -e "${GREEN}✓${NC} All tools installed successfully"
+        # Install infra dependencies
+        if [ -d "infra" ]; then
+          echo -e "${GREEN}Installing infra dependencies...${NC}"
+          cd infra && bun install && cd ..
+          echo -e "${GREEN}Installing policy pack dependencies...${NC}"
+          cd infra/security/policy-pack && bun install && cd ../../..
+        fi
 
   setup:repo:
     desc: "Configure GitHub repository secrets for CI/CD"
@@ -120,7 +110,6 @@ tasks:
         NC='\033[0m'
 
         echo -e "${CYAN}GitHub Repository Secret Configuration${NC}"
-        echo "---"
 
         # Required secrets for CI/CD
         SECRETS=(
@@ -330,20 +319,21 @@ tasks:
         echo -e "  ${GREEN}task test:coverage${NC}               ${YELLOW}cov${NC}       Run tests with coverage report"
         echo -e "  ${GREEN}task quality${NC}                     ${YELLOW}q${NC}         Run all quality checks"
         echo ""
-        echo -e "${BOLD}Infrastructure:${NC}"
-        echo -e "  ${GREEN}task infra:init${NC}                  ${YELLOW}init${NC}      Initialize Pulumi stacks (dev + prod)"
-        echo -e "  ${GREEN}task infra:preview${NC}               ${YELLOW}pre${NC}       Preview changes (default: dev)"
-        echo -e "  ${GREEN}task infra:up${NC}                    ${YELLOW}up${NC}        Deploy to Azure (default: dev)"
-        echo -e "  ${GREEN}task infra:down${NC}                  ${YELLOW}down${NC}      Destroy resources (default: dev)"
-        echo -e "  ${GREEN}task infra:outputs${NC}               ${YELLOW}out${NC}       Show stack outputs as JSON"
-        echo -e "  ${GREEN}task infra:refresh${NC}               ${YELLOW}ref${NC}       Refresh Pulumi state from Azure"
-        echo ""
         echo -e "${BOLD}Security:${NC}"
         echo -e "  ${GREEN}task security:scan${NC}               ${YELLOW}s:s${NC}       Run semgrep security scanner"
         echo ""
+        echo -e "${BOLD}Infrastructure:${NC}"
+        echo -e "  ${GREEN}task oidc:setup${NC}                  ${YELLOW}oidc${NC}      Setup Azure OIDC for CI/CD"
+        echo -e "  ${GREEN}task infra:init${NC}                  ${YELLOW}init${NC}      Initialize Pulumi stacks (dev + prod)"
+        echo -e "  ${GREEN}task infra:bootstrap${NC}             ${YELLOW}boot${NC}      Bootstrap consumption plan (MSDN)"
+        echo -e "  ${GREEN}task infra:preview${NC}               ${YELLOW}pre${NC}       Preview changes (default: dev)"
+        echo -e "  ${GREEN}task infra:up${NC}                    ${YELLOW}up${NC}        Deploy to Azure (default: dev)"
+        echo -e "  ${GREEN}task infra:down${NC}                  ${YELLOW}down${NC}      Destroy resources (default: dev)"
+        echo -e "  ${GREEN}task infra:refresh${NC}               ${YELLOW}ref${NC}       Refresh Pulumi state from Azure"
+        echo -e "  ${GREEN}task infra:outputs${NC}               ${YELLOW}out${NC}       Show stack outputs as JSON"
+        echo ""
         echo -e "${BOLD}Claude Code:${NC}"
         echo -e "  ${GREEN}task claude:plan${NC}                 ${YELLOW}plan${NC}      Open latest Claude plan in IDE"
-        echo -e "  ${GREEN}task claude:task${NC}                 ${YELLOW}ctask${NC}     Open latest Claude task in IDE"
         echo ""
         echo -e "${BOLD}Task Libraries:${NC}"
         echo -e "  ${GREEN}task git:<command>${NC}                         Git & GitHub operations"
@@ -488,41 +478,6 @@ tasks:
           FILE:
             sh: ls -t "$HOME/.claude/plans"/*.md 2>/dev/null | head -1
 
-  claude:task:
-    desc: "Open the latest Claude Code task in the IDE"
-    aliases: [ctask]
-    silent: true
-    cmds:
-      - |
-        set -euo pipefail
-        TASKS_DIR="$HOME/.claude/tasks"
-        if [ ! -d "$TASKS_DIR" ]; then
-          echo "No tasks directory found at $TASKS_DIR"
-          exit 1
-        fi
-        LATEST_DIR=$(ls -dt "$TASKS_DIR"/*/ 2>/dev/null | head -1)
-        if [ -z "$LATEST_DIR" ]; then
-          echo "No task directories found"
-          exit 1
-        fi
-        # Look for .md files; fall back to non-hidden files
-        LATEST=$(ls -t "$LATEST_DIR"*.md 2>/dev/null | head -1)
-        if [ -z "$LATEST" ]; then
-          LATEST=$(find "$LATEST_DIR" -maxdepth 1 -not -name '.*' -type f 2>/dev/null | head -1)
-        fi
-        if [ -z "$LATEST" ]; then
-          echo "No files found in $LATEST_DIR"
-          echo "Task dirs contain only lock files — tasks may not have persisted content yet"
-          exit 1
-        fi
-        echo "Opening: $LATEST"
-      - task: ide:open
-        vars:
-          FILE:
-            sh: |
-              DIR=$(ls -dt "$HOME/.claude/tasks"/*/ 2>/dev/null | head -1)
-              ls -t "$DIR"*.md 2>/dev/null | head -1 || find "$DIR" -maxdepth 1 -not -name '.*' -type f 2>/dev/null | head -1
-
   quality:
     desc: "Run all quality checks (lint, typecheck, security, test)"
     aliases: [q]
@@ -546,6 +501,10 @@ tasks:
         echo ""
         echo -e "${GREEN}✓${NC} All quality checks passed"
 
+  # ---------------------------------------------------------------------------
+  # Infrastructure (Pulumi)
+  # ---------------------------------------------------------------------------
+
   infra:check-prereqs:
     desc: "Check infrastructure prerequisites (az, pulumi, login)"
     internal: true
@@ -565,27 +524,29 @@ tasks:
         fi
 
         if ! command -v az &>/dev/null; then
-          echo -e "${RED}Error:${NC} Azure CLI is not installed."
+          echo -e "${RED}Error:${NC} Azure CLI (az) is not installed."
           echo -e "  Install: ${CYAN}brew install azure-cli${NC}"
+          echo -e "  Or run:  ${CYAN}task install${NC}"
           exit 1
         fi
 
         if ! az account show &>/dev/null 2>&1; then
-          echo -e "${RED}Error:${NC} Not logged into Azure."
+          echo -e "${RED}Error:${NC} Not logged in to Azure."
           echo -e "  Run: ${CYAN}az login${NC}"
           exit 1
         fi
 
+        cd infra
         if ! pulumi whoami &>/dev/null 2>&1; then
-          echo -e "${RED}Error:${NC} Not logged into Pulumi."
+          echo -e "${RED}Error:${NC} Not logged in to Pulumi."
           echo -e "  Run: ${CYAN}pulumi login${NC}"
           exit 1
         fi
 
   infra:init:
     desc: "Initialize Pulumi stacks (dev and prod)"
-    silent: true
     aliases: [init]
+    silent: true
     dir: infra
     deps: [infra:check-prereqs]
     cmds:
@@ -599,6 +560,96 @@ tasks:
         pulumi stack init dev 2>/dev/null || echo -e "${GREEN}dev stack already exists${NC}"
         pulumi stack init prod 2>/dev/null || echo -e "${GREEN}prod stack already exists${NC}"
         echo -e "${GREEN}✓${NC} Stacks initialized"
+
+  infra:bootstrap:
+    desc: "Bootstrap consumption plan on MSDN subscription (usage: task infra:bootstrap -- dev)"
+    aliases: [boot]
+    silent: true
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        YELLOW='\033[0;33m'
+        CYAN='\033[0;36m'
+        RED='\033[0;31m'
+        NC='\033[0m'
+
+        echo -e "${CYAN}Bootstrapping Function App + consumption plan for ${GREEN}{{.STACK}}${NC}"
+        echo -e "${YELLOW}Required on MSDN subscriptions where ARM API cannot create App Service Plans${NC}"
+        echo ""
+
+        # Read spec values from Pulumi config/outputs
+        cd infra
+        STACK="{{.STACK}}"
+        RG=$(pulumi config get --stack "$STACK" --path 'cdn:resourceGroupName' 2>/dev/null || echo "")
+        if [ -z "$RG" ]; then
+          # Fall back to stack outputs if config not set
+          RG=$(pulumi stack output --stack "$STACK" resourceGroupName 2>/dev/null || echo "")
+        fi
+        if [ -z "$RG" ]; then
+          echo -e "${RED}Error:${NC} Cannot determine resource group name."
+          echo "Run 'task infra:up -- {{.STACK}}' first to create the resource group."
+          exit 1
+        fi
+
+        SA=$(pulumi stack output --stack "$STACK" storageAccountName 2>/dev/null || echo "")
+        FUNC=$(pulumi stack output --stack "$STACK" functionAppName 2>/dev/null || echo "")
+
+        if [ -z "$SA" ]; then
+          echo -e "${RED}Error:${NC} Storage account not found in stack outputs."
+          echo "Run 'task infra:up -- {{.STACK}}' first to create base resources."
+          exit 1
+        fi
+
+        if [ -z "$FUNC" ]; then
+          echo -e "${RED}Error:${NC} Function app name not found in stack outputs."
+          exit 1
+        fi
+
+        # Check if function app already exists
+        if az functionapp show --name "$FUNC" --resource-group "$RG" &>/dev/null 2>&1; then
+          echo -e "${GREEN}✓${NC} Function app ${FUNC} already exists"
+          echo ""
+
+          # Check if already imported into Pulumi
+          IMPORTED=$(cd /Users/tobiaslekman/Repo/cdn/infra && pulumi stack --stack "$STACK" export 2>/dev/null | \
+            python3 -c 'import json,sys;d=json.load(sys.stdin);print("yes" if any("WebApp" in r.get("type","") for r in d.get("deployment",{}).get("resources",[])) else "no")' 2>/dev/null || echo "no")
+          if [ "$IMPORTED" = "yes" ]; then
+            echo -e "${GREEN}✓${NC} Already imported into Pulumi state"
+          else
+            echo -e "${CYAN}Importing into Pulumi state...${NC}"
+            SUB_ID=$(az account show --query id -o tsv)
+            IMPORT_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Web/sites/${FUNC}"
+            pulumi import --stack "$STACK" --yes azure-native:web:WebApp func "$IMPORT_ID"
+            echo -e "${GREEN}✓${NC} Imported into Pulumi state"
+          fi
+          exit 0
+        fi
+
+        echo -e "${CYAN}Creating function app via Azure CLI...${NC}"
+        az functionapp create \
+          --name "$FUNC" \
+          --resource-group "$RG" \
+          --storage-account "$SA" \
+          --consumption-plan-location uksouth \
+          --runtime node --runtime-version 20 \
+          --functions-version 4 --os-type Linux \
+          --assign-identity '[system]' \
+          --query '{name:name, plan:serverFarmId}' -o json
+
+        echo ""
+        echo -e "${CYAN}Importing into Pulumi state...${NC}"
+        SUB_ID=$(az account show --query id -o tsv)
+        IMPORT_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Web/sites/${FUNC}"
+        pulumi import --stack "$STACK" --yes azure-native:web:WebApp func "$IMPORT_ID"
+
+        echo ""
+        echo -e "${GREEN}✓ Bootstrap complete${NC}"
+        echo -e "  Function app: ${FUNC}"
+        echo -e "  Next step: ${CYAN}task infra:up -- {{.STACK}}${NC}"
 
   infra:preview:
     desc: "Preview infrastructure changes (usage: task infra:preview -- dev)"
@@ -615,7 +666,7 @@ tasks:
         CYAN='\033[0;36m'
         NC='\033[0m'
         echo -e "${CYAN}Previewing infrastructure changes for ${GREEN}{{.STACK}}${NC}"
-        pulumi preview -s "{{.STACK}}"
+        pulumi preview -s "{{.STACK}}" --policy-pack security/policy-pack
 
   infra:up:
     desc: "Deploy infrastructure to Azure (usage: task infra:up -- dev)"
@@ -628,7 +679,7 @@ tasks:
     cmds:
       - |
         set -euo pipefail
-        pulumi up -s "{{.STACK}}" --yes --skip-preview --suppress-outputs
+        pulumi up -s "{{.STACK}}" --yes --skip-preview --suppress-outputs --policy-pack security/policy-pack
 
   infra:down:
     desc: "Destroy infrastructure on Azure (usage: task infra:down -- dev)"
@@ -643,17 +694,6 @@ tasks:
         set -euo pipefail
         pulumi destroy -s "{{.STACK}}" --yes --skip-preview --suppress-outputs
 
-  infra:outputs:
-    desc: "Show stack outputs as JSON (usage: task infra:outputs -- dev)"
-    aliases: [out]
-    silent: true
-    dir: infra
-    vars:
-      STACK: '{{.CLI_ARGS | default "dev"}}'
-    deps: [infra:check-prereqs]
-    cmds:
-      - pulumi stack output -s "{{.STACK}}" --json
-
   infra:refresh:
     desc: "Refresh Pulumi state from Azure (usage: task infra:refresh -- dev)"
     aliases: [ref]
@@ -666,3 +706,128 @@ tasks:
       - |
         set -euo pipefail
         pulumi refresh -s "{{.STACK}}" --skip-preview --clear-pending-creates --suppress-outputs --yes
+
+  infra:outputs:
+    desc: "Show stack outputs as JSON (usage: task infra:outputs -- dev)"
+    aliases: [out]
+    silent: true
+    dir: infra
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - pulumi stack output -s "{{.STACK}}" --json
+
+  oidc:setup:
+    desc: "Setup Azure OIDC for CI/CD: app registration, federated credentials, role assignment, GitHub variables"
+    aliases: [oidc]
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        YELLOW='\033[0;33m'
+        CYAN='\033[0;36m'
+        RED='\033[0;31m'
+        NC='\033[0m'
+
+        APP_NAME="github-cdn-ci"
+        REPO="lekman/cdn"
+
+        echo -e "${CYAN}OIDC Setup for CI/CD${NC}"
+        echo "---"
+
+        # Prerequisites
+        for cmd in az gh; do
+          if ! command -v "$cmd" &>/dev/null; then
+            echo -e "${RED}Error:${NC} $cmd is not installed"
+            exit 1
+          fi
+        done
+        if ! az account show &>/dev/null 2>&1; then
+          echo -e "${YELLOW}Not logged in to Azure. Launching login...${NC}"
+          az login
+        fi
+        if ! gh auth status &>/dev/null 2>&1; then
+          echo -e "${YELLOW}Not logged in to GitHub. Launching login...${NC}"
+          gh auth login -p ssh --skip-ssh-key
+        fi
+
+        # Ensure gh uses SSH protocol
+        CURRENT_PROTO=$(gh config get git_protocol 2>/dev/null || echo "")
+        if [ "$CURRENT_PROTO" != "ssh" ]; then
+          gh config set git_protocol ssh
+          echo -e "${GREEN}✓${NC} Set gh git_protocol to ssh"
+        fi
+
+        SUB_ID=$(az account show --query id -o tsv)
+        TENANT_ID=$(az account show --query tenantId -o tsv)
+        echo -e "Subscription: ${GREEN}${SUB_ID}${NC}"
+        echo -e "Tenant:       ${GREEN}${TENANT_ID}${NC}"
+        echo ""
+
+        # 1. App registration
+        echo -e "${CYAN}1. App registration${NC}"
+        APP_ID=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv 2>/dev/null)
+        if [ -n "$APP_ID" ]; then
+          echo -e "  ${GREEN}✓${NC} ${APP_NAME} exists (${APP_ID})"
+        else
+          APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
+          echo -e "  ${GREEN}✓${NC} Created ${APP_NAME} (${APP_ID})"
+        fi
+
+        # 2. Service principal
+        echo -e "${CYAN}2. Service principal${NC}"
+        SP_EXISTS=$(az ad sp list --filter "appId eq '${APP_ID}'" --query "[0].id" -o tsv 2>/dev/null)
+        if [ -n "$SP_EXISTS" ]; then
+          echo -e "  ${GREEN}✓${NC} Already exists"
+        else
+          az ad sp create --id "$APP_ID" > /dev/null
+          echo -e "  ${GREEN}✓${NC} Created"
+        fi
+
+        # 3. Federated identity credentials
+        echo -e "${CYAN}3. Federated identity credentials${NC}"
+        add_credential() {
+          local name="$1" subject="$2"
+          EXISTING=$(az ad app federated-credential list --id "$APP_ID" \
+            --query "[?name=='${name}'].name" -o tsv 2>/dev/null)
+          if [ -n "$EXISTING" ]; then
+            echo -e "  ${GREEN}✓${NC} ${name} exists"
+          else
+            az ad app federated-credential create --id "$APP_ID" --parameters "{
+              \"name\": \"${name}\",
+              \"issuer\": \"https://token.actions.githubusercontent.com\",
+              \"subject\": \"${subject}\",
+              \"audiences\": [\"api://AzureADTokenExchange\"]
+            }" > /dev/null
+            echo -e "  ${GREEN}✓${NC} Created ${name}"
+          fi
+        }
+        add_credential "github-main" "repo:${REPO}:ref:refs/heads/main"
+        add_credential "github-pr" "repo:${REPO}:pull_request"
+        add_credential "github-production" "repo:${REPO}:environment:production"
+
+        # 4. Role assignments (subscription-level)
+        echo -e "${CYAN}4. Role assignments (Contributor + User Access Administrator on subscription)${NC}"
+        SCOPE="/subscriptions/${SUB_ID}"
+        az role assignment create --assignee "$APP_ID" --role Contributor \
+          --scope "$SCOPE" > /dev/null 2>&1 || true
+        echo -e "  ${GREEN}✓${NC} Contributor on subscription ${SUB_ID}"
+        az role assignment create --assignee "$APP_ID" --role "User Access Administrator" \
+          --scope "$SCOPE" > /dev/null 2>&1 || true
+        echo -e "  ${GREEN}✓${NC} User Access Administrator on subscription ${SUB_ID}"
+
+        # 5. GitHub variables
+        echo -e "${CYAN}5. GitHub variables${NC}"
+        gh variable set ARM_CLIENT_ID --repo "$REPO" --body "$APP_ID"
+        echo -e "  ${GREEN}✓${NC} ARM_CLIENT_ID"
+        gh variable set ARM_TENANT_ID --repo "$REPO" --body "$TENANT_ID"
+        echo -e "  ${GREEN}✓${NC} ARM_TENANT_ID"
+        gh variable set ARM_SUBSCRIPTION_ID --repo "$REPO" --body "$SUB_ID"
+        echo -e "  ${GREEN}✓${NC} ARM_SUBSCRIPTION_ID"
+
+        echo ""
+        echo -e "${GREEN}✓ OIDC setup complete${NC}"
+        echo -e "  App:     ${CYAN}${APP_ID}${NC}"
+        echo -e "  Vars:    ARM_CLIENT_ID, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID"

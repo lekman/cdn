@@ -4,9 +4,8 @@
     ".logs/**",
     ".worktree/**",
     "infra/**",
+    "cdn/**",
     "docs/policies/**",
-    "openapi/**",
-    "../../openapi/**",
-    "../../policies/**"
+    "openapi/**"
   ]
 }
