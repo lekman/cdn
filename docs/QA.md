@@ -14,6 +14,8 @@ All business logic is developed using Test-Driven Development (TDD). Tests descr
 | `tests/unit/functions/` | Function handler logic | Mock Azure SDK + Cloudflare |
 | `tests/unit/shared/` | Shared utility logic | No dependencies |
 | `tests/mocks/` | Shared mock implementations | N/A |
+| `tests/iq/` | Post-deployment resource verification | ~30s (live Azure) |
+| `tests/oq/` | Post-deployment operational checks | ~15s (live Azure) |
 
 ## Coverage Targets
 
@@ -118,6 +120,33 @@ Run all checks locally:
 ```bash
 task quality
 ```
+
+## Qualification Tests
+
+Post-deployment verification tests that require live Azure access (`az login`).
+Not included in `task test` or `task quality` — run separately after deployment.
+
+### Installation Qualification (IQ)
+
+Validates deployed resources match `specification.ts` values (names, SKUs, tags, configuration).
+
+```bash
+task test:iq -- dev
+```
+
+IQ checks: resource group, storage account, blob container, Cosmos DB account/database/container, Key Vault, Function App, Service Bus queue, APIM API.
+
+### Operational Qualification (OQ)
+
+Validates deployed services are operational (provisioning state, connectivity, route availability).
+
+```bash
+task test:oq -- dev
+```
+
+OQ checks: provisioning states (Succeeded/Running/Active), Cosmos document endpoint reachable, APIM route responds.
+
+Prerequisites: `az login`, `pulumi login`, deployed stack.
 
 ## Key Test Scenarios
 
