@@ -418,7 +418,7 @@
         "additionalProperties": false,
         "properties": {
           "created": {
-            "type": ["string", "null"],
+            "type": "string",
             "format": "date-time",
             "description": "EXIF DateTimeOriginal as ISO 8601 UTC timestamp. Null if not present in the image.",
             "example": "2026-01-31T10:00:00Z",
@@ -444,7 +444,7 @@
         "additionalProperties": false,
         "properties": {
           "created": {
-            "type": ["string", "null"],
+            "type": "string",
             "format": "date-time",
             "description": "EXIF DateTimeOriginal as ISO 8601 UTC timestamp. Null if not present in the image.",
             "example": "2026-01-31T10:00:00Z",
@@ -519,10 +519,6 @@
       }
     },
     "securitySchemes": {
-      "clientCertificate": {
-        "type": "mutualTLS",
-        "description": "Client certificate authentication (mTLS). APIM validates the client certificate against a trusted CA list."
-      },
       "apiKey": {
         "type": "apiKey",
         "name": "Ocp-Apim-Subscription-Key",
@@ -533,7 +529,6 @@
   },
   "security": [
     {
-      "clientCertificate": [],
       "apiKey": []
     }
   ]
