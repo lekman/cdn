@@ -144,6 +144,8 @@ jobs:
     timeout-minutes: 5
     needs: [infra-changes]
     if: needs.infra-changes.outputs.changed == 'true'
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
 
