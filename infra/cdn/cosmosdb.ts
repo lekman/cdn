@@ -24,7 +24,7 @@ const containerConfig = cosmosContainerConfig(spec);
 export const cosmosContainer = new documentdb.SqlResourceSqlContainer("cosmos-container", {
   accountName: cosmosAccount.name,
   resourceGroupName,
-  databaseName: cosmosDatabase.name,
+  databaseName: dbConfig.databaseName,
   containerName: containerConfig.containerName,
   resource: {
     id: containerConfig.containerName,

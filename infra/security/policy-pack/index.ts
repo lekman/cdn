@@ -8,6 +8,7 @@
  */
 
 import { apimanagement } from "@pulumi/azure-native";
+import { documentdb } from "@pulumi/azure-native";
 import { keyvault } from "@pulumi/azure-native";
 import { storage } from "@pulumi/azure-native";
 import { web } from "@pulumi/azure-native";
@@ -50,7 +51,7 @@ new PolicyPack("cdn-security", {
       description: "Cosmos DB should disable local auth in favour of managed identity (MCSB IM-1)",
       enforcementLevel: "advisory",
       validateResource: validateResourceOfType(
-        storage.StorageAccount,
+        documentdb.DatabaseAccount,
         // Advisory: Cosmos DB local auth check is validated via IQ tests post-deployment.
         // This serves as a reminder during preview.
         (_account, _args, _reportViolation) => {},
@@ -112,8 +113,13 @@ new PolicyPack("cdn-security", {
         const tags = (args.props as Record<string, unknown>).tags as
           | Record<string, string>
           | undefined;
-        if (!tags) return;
         const required = ["project", "environment", "managedBy"];
+        if (!tags) {
+          reportViolation(
+            `Resource must have tags: ${required.join(", ")}`,
+          );
+          return;
+        }
         const missing = required.filter((t) => !tags[t]);
         if (missing.length > 0) {
           reportViolation(`Resource must have tags: ${missing.join(", ")}`);

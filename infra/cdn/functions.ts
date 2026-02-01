@@ -56,7 +56,14 @@ export const functionApp = new web.WebApp("func", {
       },
       {
         name: "KEY_VAULT_URI",
-        value: keyVault.properties.apply((p) => p.vaultUri ?? ""),
+        value: keyVault.properties.apply((p) => {
+          if (!p.vaultUri) {
+            throw new Error(
+              "keyVault.properties.vaultUri is undefined; cannot set KEY_VAULT_URI",
+            );
+          }
+          return p.vaultUri;
+        }),
       },
     ],
   },

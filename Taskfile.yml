@@ -53,7 +53,7 @@ tasks:
       - |
         set -euo pipefail
         if brew list "{{.PACKAGE}}" &>/dev/null; then
-          brew upgrade "{{.PACKAGE}}"
+          brew upgrade "{{.PACKAGE}}" 2>/dev/null || true
         else
           brew install "{{.PACKAGE}}"
         fi
