@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0](https://github.com/lekman/cdn/compare/cdn-v1.0.0...cdn-v1.1.0) (2026-02-01)
+
+
+### Features
+
+* **docs:** enhance architecture and README with detailed flow diagrams and updated content ([fc8c917](https://github.com/lekman/cdn/commit/fc8c91738dae326bce5687b5f71bde6761cb296e))
+* **docs:** update architecture diagrams and enhance component descriptions in ARCHITECTURE.md ([49c7aec](https://github.com/lekman/cdn/commit/49c7aec3f0a0a0b3c9a5aec95d315731d0a28fb0))
+
+
+### Bug Fixes
+
+* **api:** update schema for created property and remove clientCertificate security scheme ([02e0a47](https://github.com/lekman/cdn/commit/02e0a47c230b9585fd472cc62d2ee47d99b74756))
+
 ## 1.0.0 (2026-02-01)
 
 
