@@ -1,15 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import * as apimanagement from "@pulumi/azure-native/apimanagement";
-import * as pulumi from "@pulumi/pulumi";
-import { spec } from "../stack";
 import { cdnApi } from "./api";
+import { ragResourceGroupName, apimServiceName } from "./rag-stack";
 
-const ragStack = new pulumi.StackReference(spec.ragInfraStack);
-const resourceGroupName = ragStack.getOutput("resourceGroupName") as pulumi.Output<string>;
-const apimServiceName = ragStack.getOutput("gatewayUrl").apply((url: string) => {
-  return new URL(url).hostname.split(".")[0];
-}) as pulumi.Output<string>;
+const resourceGroupName = ragResourceGroupName;
 
 const postImagesPolicyXml = fs.readFileSync(
   path.resolve(__dirname, "../../policies/post-images.xml"),
@@ -22,6 +17,7 @@ const getImagePolicyXml = fs.readFileSync(
 
 export const cdnApiPolicies = [
   new apimanagement.ApiOperationPolicy("policy-upload-image", {
+    policyId: "policy",
     serviceName: apimServiceName,
     resourceGroupName,
     apiId: cdnApi.name,
@@ -30,6 +26,7 @@ export const cdnApiPolicies = [
     value: postImagesPolicyXml,
   }),
   new apimanagement.ApiOperationPolicy("policy-get-image", {
+    policyId: "policy",
     serviceName: apimServiceName,
     resourceGroupName,
     apiId: cdnApi.name,

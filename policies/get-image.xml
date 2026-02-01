@@ -10,7 +10,7 @@
     <choose>
       <when condition="@{
         var hash = (string)context.Variables[&quot;hash&quot;];
-        if (hash == null || hash.Length != 43) return true;
+        if (hash == null || hash.Length != 43) { return true; }
         var regex = new System.Text.RegularExpressions.Regex(&quot;^[A-Za-z0-9_-]{43}$&quot;);
         return !regex.IsMatch(hash);
       }">
