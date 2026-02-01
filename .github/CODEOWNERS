@@ -1,8 +1,0 @@
-# Default owner for all files
-* @lekman
-
-# Release-please files — bot ownership enables auto-approve via branch protection
-# The GITHUB_TOKEN (github-actions bot) approves; the app bot creates the PR
-/package.json @lekman @app/github-actions @app/lekman-release-please-bot
-/docs/CHANGELOG.md @lekman @app/github-actions @app/lekman-release-please-bot
-/.release-please-manifest.json @lekman @app/github-actions @app/lekman-release-please-bot
