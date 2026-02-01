@@ -175,6 +175,64 @@ function buildExifTiffData(): Buffer {
 }
 
 /**
+ * Builds a TIFF with only a Make tag (no Model).
+ */
+function buildMakeOnlyTiffData(): Buffer {
+  const buf = Buffer.alloc(34);
+
+  buf.write("II", 0, "ascii");
+  buf.writeUInt16LE(42, 2);
+  buf.writeUInt32LE(8, 4);
+
+  // IFD0: 1 entry
+  buf.writeUInt16LE(1, 8);
+
+  // Make (0x010F) — ASCII, 6 chars, offset 26
+  const off = 10;
+  buf.writeUInt16LE(0x010f, off);
+  buf.writeUInt16LE(2, off + 2);
+  buf.writeUInt32LE(6, off + 4);
+  buf.writeUInt32LE(26, off + 8);
+
+  // Next IFD offset: none
+  buf.writeUInt32LE(0, 22);
+
+  // Data: Make at 26
+  buf.write("Canon\0", 26, "ascii");
+
+  return buf;
+}
+
+/**
+ * Builds a TIFF with only a Model tag (no Make).
+ */
+function buildModelOnlyTiffData(): Buffer {
+  const buf = Buffer.alloc(40);
+
+  buf.write("II", 0, "ascii");
+  buf.writeUInt16LE(42, 2);
+  buf.writeUInt32LE(8, 4);
+
+  // IFD0: 1 entry
+  buf.writeUInt16LE(1, 8);
+
+  // Model (0x0110) — ASCII, 13 chars, offset 26
+  const off = 10;
+  buf.writeUInt16LE(0x0110, off);
+  buf.writeUInt16LE(2, off + 2);
+  buf.writeUInt32LE(13, off + 4);
+  buf.writeUInt32LE(26, off + 8);
+
+  // Next IFD offset: none
+  buf.writeUInt32LE(0, 22);
+
+  // Data: Model at 26
+  buf.write("Canon EOS R5\0", 26, "ascii");
+
+  return buf;
+}
+
+/**
  * Builds a minimal TIFF with only an Orientation tag (no relevant EXIF fields).
  */
 function buildMinimalTiffData(): Buffer {
@@ -321,5 +379,66 @@ describe("extractExif", () => {
     expect(result!.location).not.toBeNull();
     expect(Math.abs(result!.location!.lat - 51.5074)).toBeLessThan(0.001);
     expect(Math.abs(result!.location!.lon - -0.1278)).toBeLessThan(0.001);
+  });
+
+  test("returns camera as model when make is absent", () => {
+    const tiff = buildModelOnlyTiffData();
+    const jpeg = createJpegWithExif(tiff);
+    const result = extractExif(jpeg);
+
+    expect(result).not.toBeNull();
+    expect(result!.camera).toBe("Canon EOS R5");
+    expect(result!.created).toBeNull();
+    expect(result!.location).toBeNull();
+  });
+
+  test("returns camera as make when model is absent", () => {
+    const tiff = buildMakeOnlyTiffData();
+    const jpeg = createJpegWithExif(tiff);
+    const result = extractExif(jpeg);
+
+    expect(result).not.toBeNull();
+    expect(result!.camera).toBe("Canon");
+    expect(result!.created).toBeNull();
+    expect(result!.location).toBeNull();
+  });
+
+  test("returns null when JPEG has non-0xFF byte in marker position", () => {
+    // SOI + corrupted byte where a marker is expected (needs 6+ bytes for loop entry)
+    const jpeg = Buffer.from([0xff, 0xd8, 0x00, 0x00, 0x00, 0x00]);
+    const result = extractExif(jpeg);
+    expect(result).toBeNull();
+  });
+
+  test("returns null when JPEG has 0xFF padding bytes before marker", () => {
+    // SOI + padding (0xFF 0xFF) + SOS marker
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xff, 0xda, 0x00, 0x02]);
+    const result = extractExif(jpeg);
+    expect(result).toBeNull();
+  });
+
+  test("returns null when JPEG has standalone RST marker before content", () => {
+    // SOI + RST0 + SOS
+    const jpeg = Buffer.from([0xff, 0xd8, 0xff, 0xd0, 0xff, 0xda, 0x00, 0x02]);
+    const result = extractExif(jpeg);
+    expect(result).toBeNull();
+  });
+
+  test("returns null when APP1 Exif segment has no room for TIFF data", () => {
+    // SOI + APP1 with length=8 (just enough for length field + "Exif\0\0", no tiff data)
+    const jpeg = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe1, 0x00, 0x08, 0x45, 0x78, 0x69, 0x66, 0x00, 0x00, 0xff, 0xd9,
+    ]);
+    const result = extractExif(jpeg);
+    expect(result).toBeNull();
+  });
+
+  test("returns null when JPEG segments exhaust buffer without APP1", () => {
+    // SOI + APP0 (length=4, minimal) + APP2 (length=4, minimal) — no SOS, loop exhausts
+    const jpeg = Buffer.from([
+      0xff, 0xd8, 0xff, 0xe0, 0x00, 0x04, 0x00, 0x00, 0xff, 0xe2, 0x00, 0x04, 0x00, 0x00,
+    ]);
+    const result = extractExif(jpeg);
+    expect(result).toBeNull();
   });
 });
