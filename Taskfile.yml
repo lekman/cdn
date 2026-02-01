@@ -497,7 +497,14 @@ tasks:
     aliases: [plan]
     silent: true
     cmds:
-      - claude-viz &>/dev/null &
+      - |
+        if lsof -i :8888 -sTCP:LISTEN >/dev/null 2>&1; then
+          open http://localhost:8888
+        else
+          nohup claude-viz >/dev/null 2>&1 & disown
+          sleep 1
+          open http://localhost:8888
+        fi
 
 
   quality:

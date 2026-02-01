@@ -16,6 +16,9 @@ const spec = createSpec(env);
 const rg = spec.resourceGroup.name;
 const ragStack = spec.ragInfraStack;
 
+/** Timeout for az CLI calls (network-bound, varies by resource type). */
+const AZ_TIMEOUT = 30_000;
+
 // RAG stack resource names (resolved from RAG Pulumi stack outputs)
 let ragRg: string;
 let apimName: string;
@@ -23,21 +26,33 @@ let sbNamespace: string;
 
 // Resolve cross-stack outputs before tests run
 describe("IQ: resolve RAG stack outputs", () => {
-  test("RAG resource group name", async () => {
-    ragRg = await stackOutput("resourceGroupName", ragStack);
-    expect(ragRg).toBeTruthy();
-  });
+  test(
+    "RAG resource group name",
+    async () => {
+      ragRg = await stackOutput("resourceGroupName", ragStack);
+      expect(ragRg).toBeTruthy();
+    },
+    AZ_TIMEOUT
+  );
 
-  test("APIM service name", async () => {
-    const gatewayUrl = await stackOutput("gatewayUrl", ragStack);
-    apimName = new URL(gatewayUrl).hostname.split(".")[0]!;
-    expect(apimName).toBeTruthy();
-  });
+  test(
+    "APIM service name",
+    async () => {
+      const gatewayUrl = await stackOutput("gatewayUrl", ragStack);
+      apimName = new URL(gatewayUrl).hostname.split(".")[0]!;
+      expect(apimName).toBeTruthy();
+    },
+    AZ_TIMEOUT
+  );
 
-  test("Service Bus namespace name", async () => {
-    sbNamespace = await stackOutput("serviceBusNamespaceName", ragStack);
-    expect(sbNamespace).toBeTruthy();
-  });
+  test(
+    "Service Bus namespace name",
+    async () => {
+      sbNamespace = await stackOutput("serviceBusNamespaceName", ragStack);
+      expect(sbNamespace).toBeTruthy();
+    },
+    AZ_TIMEOUT
+  );
 });
 
 // --- CDN Resource Group resources ---
@@ -51,12 +66,16 @@ interface AzResource {
 describe(`IQ: resource group (${env})`, () => {
   let resource: AzResource;
 
-  test("exists", async () => {
-    resource = await az<AzResource>(
-      `group show --name ${rg} --query {name:name,location:location,tags:tags} --output json`
-    );
-    expect(resource.name).toBe(rg);
-  });
+  test(
+    "exists",
+    async () => {
+      resource = await az<AzResource>(
+        `group show --name ${rg} --query {name:name,location:location,tags:tags} --output json`
+      );
+      expect(resource.name).toBe(rg);
+    },
+    AZ_TIMEOUT
+  );
 
   test("location matches spec", () => {
     expect(resource.location).toBe(spec.location);
@@ -78,12 +97,16 @@ interface StorageResource extends AzResource {
 describe(`IQ: storage account (${env})`, () => {
   let resource: StorageResource;
 
-  test("exists", async () => {
-    resource = await az<StorageResource>(
-      `storage account show --name ${spec.storage.accountName} --resource-group ${rg} --query {name:name,location:location,sku:sku,accessTier:accessTier,minimumTlsVersion:minimumTlsVersion,tags:tags} --output json`
-    );
-    expect(resource.name).toBe(spec.storage.accountName);
-  });
+  test(
+    "exists",
+    async () => {
+      resource = await az<StorageResource>(
+        `storage account show --name ${spec.storage.accountName} --resource-group ${rg} --query {name:name,location:location,sku:sku,accessTier:accessTier,minimumTlsVersion:minimumTlsVersion,tags:tags} --output json`
+      );
+      expect(resource.name).toBe(spec.storage.accountName);
+    },
+    AZ_TIMEOUT
+  );
 
   test("SKU matches spec", () => {
     expect(resource.sku.name).toBe(spec.storage.skuName);
@@ -104,12 +127,16 @@ describe(`IQ: storage account (${env})`, () => {
 });
 
 describe(`IQ: blob container (${env})`, () => {
-  test("images container exists", async () => {
-    const result = await az<{ name: string }>(
-      `storage container show --name ${spec.storage.containerName} --account-name ${spec.storage.accountName} --auth-mode login --query {name:name} --output json`
-    );
-    expect(result.name).toBe(spec.storage.containerName);
-  });
+  test(
+    "images container exists",
+    async () => {
+      const result = await az<{ name: string }>(
+        `storage container show --name ${spec.storage.containerName} --account-name ${spec.storage.accountName} --auth-mode login --query {name:name} --output json`
+      );
+      expect(result.name).toBe(spec.storage.containerName);
+    },
+    AZ_TIMEOUT
+  );
 });
 
 interface CosmosResource extends AzResource {
@@ -119,12 +146,16 @@ interface CosmosResource extends AzResource {
 describe(`IQ: Cosmos DB account (${env})`, () => {
   let resource: CosmosResource;
 
-  test("exists", async () => {
-    resource = await az<CosmosResource>(
-      `cosmosdb show --name ${spec.cosmosDb.accountName} --resource-group ${rg} --query {name:name,location:location,documentEndpoint:documentEndpoint,tags:tags} --output json`
-    );
-    expect(resource.name).toBe(spec.cosmosDb.accountName);
-  });
+  test(
+    "exists",
+    async () => {
+      resource = await az<CosmosResource>(
+        `cosmosdb show --name ${spec.cosmosDb.accountName} --resource-group ${rg} --query {name:name,location:location,documentEndpoint:documentEndpoint,tags:tags} --output json`
+      );
+      expect(resource.name).toBe(spec.cosmosDb.accountName);
+    },
+    AZ_TIMEOUT
+  );
 
   test("tags match spec", () => {
     expect(resource.tags.project).toBe(spec.tags.project);
@@ -133,12 +164,16 @@ describe(`IQ: Cosmos DB account (${env})`, () => {
 });
 
 describe(`IQ: Cosmos DB database (${env})`, () => {
-  test("cdn database exists", async () => {
-    const result = await az<{ name: string }>(
-      `cosmosdb sql database show --account-name ${spec.cosmosDb.accountName} --resource-group ${rg} --name ${spec.cosmosDb.databaseName} --query {name:name} --output json`
-    );
-    expect(result.name).toBe(spec.cosmosDb.databaseName);
-  });
+  test(
+    "cdn database exists",
+    async () => {
+      const result = await az<{ name: string }>(
+        `cosmosdb sql database show --account-name ${spec.cosmosDb.accountName} --resource-group ${rg} --name ${spec.cosmosDb.databaseName} --query {name:name} --output json`
+      );
+      expect(result.name).toBe(spec.cosmosDb.databaseName);
+    },
+    AZ_TIMEOUT
+  );
 });
 
 interface CosmosContainerResource {
@@ -153,12 +188,16 @@ interface CosmosContainerResource {
 describe(`IQ: Cosmos DB container (${env})`, () => {
   let container: CosmosContainerResource;
 
-  test("images container exists", async () => {
-    container = await az<CosmosContainerResource>(
-      `cosmosdb sql container show --account-name ${spec.cosmosDb.accountName} --resource-group ${rg} --database-name ${spec.cosmosDb.databaseName} --name ${spec.cosmosDb.containerName} --query {name:name,resource:resource} --output json`
-    );
-    expect(container.name).toBe(spec.cosmosDb.containerName);
-  });
+  test(
+    "images container exists",
+    async () => {
+      container = await az<CosmosContainerResource>(
+        `cosmosdb sql container show --account-name ${spec.cosmosDb.accountName} --resource-group ${rg} --database-name ${spec.cosmosDb.databaseName} --name ${spec.cosmosDb.containerName} --query {name:name,resource:resource} --output json`
+      );
+      expect(container.name).toBe(spec.cosmosDb.containerName);
+    },
+    AZ_TIMEOUT
+  );
 
   test("partition key matches spec", () => {
     expect(container.resource.partitionKey.paths).toContain(spec.cosmosDb.partitionKeyPath);
@@ -174,12 +213,16 @@ interface KeyVaultResource extends AzResource {
 describe(`IQ: Key Vault (${env})`, () => {
   let resource: KeyVaultResource;
 
-  test("exists", async () => {
-    resource = await az<KeyVaultResource>(
-      `keyvault show --name ${spec.keyVault.vaultName} --resource-group ${rg} --query {name:name,location:location,properties:properties,tags:tags} --output json`
-    );
-    expect(resource.name).toBe(spec.keyVault.vaultName);
-  });
+  test(
+    "exists",
+    async () => {
+      resource = await az<KeyVaultResource>(
+        `keyvault show --name ${spec.keyVault.vaultName} --resource-group ${rg} --query {name:name,location:location,properties:properties,tags:tags} --output json`
+      );
+      expect(resource.name).toBe(spec.keyVault.vaultName);
+    },
+    AZ_TIMEOUT
+  );
 
   test("soft delete is enabled", () => {
     expect(resource.properties.enableSoftDelete).toBe(true);
@@ -202,12 +245,16 @@ interface FunctionAppResource {
 describe(`IQ: Function App (${env})`, () => {
   let resource: FunctionAppResource;
 
-  test("exists", async () => {
-    resource = await az<FunctionAppResource>(
-      `functionapp show --name ${spec.functionApp.appName} --resource-group ${rg} --query {name:name,identity:identity,siteConfig:siteConfig} --output json`
-    );
-    expect(resource.name).toBe(spec.functionApp.appName);
-  });
+  test(
+    "exists",
+    async () => {
+      resource = await az<FunctionAppResource>(
+        `functionapp show --name ${spec.functionApp.appName} --resource-group ${rg} --query {name:name,identity:identity,siteConfig:siteConfig} --output json`
+      );
+      expect(resource.name).toBe(spec.functionApp.appName);
+    },
+    AZ_TIMEOUT
+  );
 
   test("has SystemAssigned managed identity", () => {
     expect(resource.identity.type).toContain("SystemAssigned");
@@ -230,12 +277,16 @@ interface QueueResource {
 describe(`IQ: Service Bus queue (${env})`, () => {
   let queue: QueueResource;
 
-  test("exists", async () => {
-    queue = await az<QueueResource>(
-      `servicebus queue show --namespace-name ${sbNamespace} --resource-group ${ragRg} --name ${spec.serviceBus.queueName} --query {name:name,maxDeliveryCount:maxDeliveryCount} --output json`
-    );
-    expect(queue.name).toBe(spec.serviceBus.queueName);
-  });
+  test(
+    "exists",
+    async () => {
+      queue = await az<QueueResource>(
+        `servicebus queue show --namespace-name ${sbNamespace} --resource-group ${ragRg} --name ${spec.serviceBus.queueName} --query {name:name,maxDeliveryCount:maxDeliveryCount} --output json`
+      );
+      expect(queue.name).toBe(spec.serviceBus.queueName);
+    },
+    AZ_TIMEOUT
+  );
 
   test("max delivery count matches spec", () => {
     expect(queue.maxDeliveryCount).toBe(spec.serviceBus.maxDeliveryCount);
@@ -252,12 +303,16 @@ interface ApiResource {
 describe(`IQ: APIM CDN API (${env})`, () => {
   let api: ApiResource;
 
-  test("exists with correct path", async () => {
-    api = await az<ApiResource>(
-      `apim api show --api-id ${spec.apim.apiName} --service-name ${apimName} --resource-group ${ragRg} --query {name:name,path:path,protocols:protocols,displayName:displayName} --output json`
-    );
-    expect(api.path).toBe(spec.apim.apiPath);
-  });
+  test(
+    "exists with correct path",
+    async () => {
+      api = await az<ApiResource>(
+        `apim api show --api-id ${spec.apim.apiName} --service-name ${apimName} --resource-group ${ragRg} --query {name:name,path:path,protocols:protocols,displayName:displayName} --output json`
+      );
+      expect(api.path).toBe(spec.apim.apiPath);
+    },
+    AZ_TIMEOUT
+  );
 
   test("uses HTTPS protocol", () => {
     expect(api.protocols).toContain("https");
