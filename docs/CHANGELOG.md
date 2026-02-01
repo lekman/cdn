@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/lekman/cdn/compare/cdn-v1.1.0...cdn-v1.2.0) (2026-02-01)
+
+
+### Features
+
+* **api:** add GET /images/{hash} APIM policy for metadata retrieval ([#7](https://github.com/lekman/cdn/issues/7)) ([1860fff](https://github.com/lekman/cdn/commit/1860ffff75f318b90eb4e27fbada5328a7b0de5d))
+
 ## [1.1.0](https://github.com/lekman/cdn/compare/cdn-v1.0.0...cdn-v1.1.0) (2026-02-01)
 
 
