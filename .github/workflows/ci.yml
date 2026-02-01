@@ -1,9 +1,17 @@
 # Continuous integration pipeline for PRs and main branch pushes.
-# Runs lint, typecheck, tests, and security scans (Semgrep).
+# Runs lint, typecheck, tests, security scans (Semgrep),
+# infrastructure unit tests, Pulumi preview (prod), and dev deployment
+# with IQ/OQ verification for infra changes on PRs.
 # All checks must pass the quality gate before merge.
 #
 # Required secrets:
-#   CODECOV_TOKEN — Coverage upload token (codecov.io)
+#   CODECOV_TOKEN          — Coverage upload token (codecov.io)
+#   PULUMI_ACCESS_TOKEN    — Pulumi Cloud personal access token
+#
+# Required variables:
+#   ARM_CLIENT_ID          — Azure AD app registration client ID
+#   ARM_TENANT_ID          — Azure AD tenant ID
+#   ARM_SUBSCRIPTION_ID    — Azure target subscription ID
 
 name: Continuous Integration
 
@@ -13,9 +21,6 @@ on:
     types: [opened, synchronize, reopened]
   push:
     branches: [main]
-
-permissions:
-  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -109,10 +114,182 @@ jobs:
             p/secrets
             p/typescript
 
+  infra-changes:
+    name: Detect Infrastructure Changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      changed: ${{ steps.filter.outputs.infra }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check for infra changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            infra:
+              - 'infra/**'
+              - 'tests/unit/infra/**'
+
+  infra-test:
+    name: Infrastructure Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [infra-changes]
+    if: needs.infra-changes.outputs.changed == 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run infrastructure unit tests
+        run: bun test tests/unit/infra/
+
+  pulumi-preview:
+    name: 'Pulumi Preview (prod)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [infra-changes, infra-test]
+    if: needs.infra-changes.outputs.changed == 'true' && github.event_name == 'pull_request' && vars.ARM_CLIENT_ID != ''
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install infra dependencies
+        run: cd infra && bun install --frozen-lockfile
+
+      - name: Azure OIDC login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Pulumi preview
+        uses: pulumi/actions@v6
+        with:
+          command: preview
+          stack-name: prod
+          work-dir: infra
+          cloud-url: https://api.pulumi.com
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+  pulumi-deploy-dev:
+    name: 'Pulumi Deploy (dev)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [infra-changes, infra-test]
+    if: needs.infra-changes.outputs.changed == 'true' && github.event_name == 'pull_request' && vars.ARM_CLIENT_ID != ''
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install infra dependencies
+        run: cd infra && bun install --frozen-lockfile
+
+      - name: Azure OIDC login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Deploy with Pulumi
+        uses: pulumi/actions@v6
+        with:
+          command: up
+          stack-name: dev
+          work-dir: infra
+          cloud-url: https://api.pulumi.com
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+  verify-dev:
+    name: 'Post-Deploy Verification (dev)'
+    runs-on: ubuntu-latest
+    needs: [pulumi-deploy-dev]
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Azure OIDC login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Setup Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          command: version
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Run IQ tests
+        run: STACK=dev bun test tests/iq/
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Run OQ tests
+        run: STACK=dev bun test tests/oq/
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, security]
+    needs: [lint, typecheck, test, security, infra-changes, infra-test, pulumi-preview, pulumi-deploy-dev, verify-dev]
     if: always()
     steps:
       - name: Check quality gate
@@ -123,6 +300,29 @@ jobs:
              [ "${{ needs.security.result }}" != "success" ]; then
             echo "Quality gate failed"
             exit 1
+          fi
+
+          # Infra jobs: fail if they ran and failed, pass if skipped (no changes)
+          if [ "${{ needs.infra-changes.outputs.changed }}" == "true" ]; then
+            if [ "${{ needs.infra-test.result }}" != "success" ]; then
+              echo "Infrastructure tests failed"
+              exit 1
+            fi
+            if [ "${{ needs.pulumi-preview.result }}" != "success" ] && \
+               [ "${{ needs.pulumi-preview.result }}" != "skipped" ]; then
+              echo "Pulumi preview failed"
+              exit 1
+            fi
+            if [ "${{ needs.pulumi-deploy-dev.result }}" != "success" ] && \
+               [ "${{ needs.pulumi-deploy-dev.result }}" != "skipped" ]; then
+              echo "Dev deployment failed"
+              exit 1
+            fi
+            if [ "${{ needs.verify-dev.result }}" != "success" ] && \
+               [ "${{ needs.verify-dev.result }}" != "skipped" ]; then
+              echo "Dev verification failed"
+              exit 1
+            fi
           fi
 
           echo "Quality gate passed"

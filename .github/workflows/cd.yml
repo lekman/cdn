@@ -1,0 +1,113 @@
+# Continuous deployment pipeline for production infrastructure.
+# Deploys to Azure via Pulumi on push to main (when infra files change),
+# then runs IQ and OQ verification tests. Also supports manual dispatch.
+# Uses OIDC (federated identity) for Azure authentication.
+# Uses the GitHub environment for approval gates.
+#
+# Required secrets:
+#   PULUMI_ACCESS_TOKEN    — Pulumi Cloud personal access token
+#
+# Required variables (set via `task oidc:setup`):
+#   ARM_CLIENT_ID          — Azure AD app registration client ID
+#   ARM_TENANT_ID          — Azure AD tenant ID
+#   ARM_SUBSCRIPTION_ID    — Azure target subscription ID
+
+name: Continuous Deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/cd.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  id-token: write  # request OIDC token for Azure login
+  contents: read   # read repository and infra code
+
+jobs:
+  deploy:
+    name: 'Deploy (prod)'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install infra dependencies
+        run: cd infra && bun install --frozen-lockfile
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Deploy with Pulumi
+        uses: pulumi/actions@v6
+        with:
+          command: up
+          stack-name: prod
+          work-dir: infra
+          cloud-url: https://api.pulumi.com
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+  verify:
+    name: 'Post-Deploy Verification (prod)'
+    runs-on: ubuntu-latest
+    needs: deploy
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ vars.ARM_CLIENT_ID }}
+          tenant-id: ${{ vars.ARM_TENANT_ID }}
+          subscription-id: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
+      - name: Setup Pulumi CLI
+        uses: pulumi/actions@v6
+        with:
+          command: version
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Run IQ tests
+        run: STACK=prod bun test tests/iq/
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+      - name: Run OQ tests
+        run: STACK=prod bun test tests/oq/
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
