@@ -5,7 +5,6 @@
 
 import { describe, expect, test } from "bun:test";
 import {
-  appServicePlanConfig,
   blobContainerConfig,
   cdnApiConfig,
   cosmosAccountConfig,
@@ -15,6 +14,7 @@ import {
   keyVaultConfig,
   keyVaultSecretConfig,
   lifecyclePolicyConfig,
+  resourceGroupConfig,
   ROLE_DEFINITIONS,
   serviceBusQueueConfig,
   storageAccountConfig,
@@ -23,6 +23,29 @@ import { createSpec } from "../../../infra/specification";
 
 const dev = createSpec("dev");
 const prod = createSpec("prod");
+
+describe("Unit: CDN stack - Resource Group config", () => {
+  for (const [name, spec] of [
+    ["dev", dev],
+    ["prod", prod],
+  ] as const) {
+    describe(name, () => {
+      const config = resourceGroupConfig(spec);
+
+      test("uses specification name", () => {
+        expect(config.resourceGroupName).toBe(spec.resourceGroup.name);
+      });
+
+      test("location matches spec", () => {
+        expect(config.location).toBe(spec.location);
+      });
+
+      test("has project tags", () => {
+        expect(config.tags).toEqual(spec.tags);
+      });
+    });
+  }
+});
 
 describe("Unit: CDN stack - Storage Account config", () => {
   for (const [name, spec] of [
@@ -165,29 +188,6 @@ describe("Unit: CDN stack - Service Bus Queue config", () => {
   test("dead lettering on expiration is disabled", () => {
     expect(config.deadLetteringOnMessageExpiration).toBe(false);
   });
-});
-
-describe("Unit: CDN stack - App Service Plan config", () => {
-  for (const [name, spec] of [
-    ["dev", dev],
-    ["prod", prod],
-  ] as const) {
-    describe(name, () => {
-      const config = appServicePlanConfig(spec);
-
-      test("SKU is Y1 Dynamic (Consumption)", () => {
-        expect(config.sku).toEqual({ name: "Y1", tier: "Dynamic" });
-      });
-
-      test("reserved is true (Linux)", () => {
-        expect(config.reserved).toBe(true);
-      });
-
-      test("has project tags", () => {
-        expect(config.tags).toEqual(spec.tags);
-      });
-    });
-  }
 });
 
 describe("Unit: CDN stack - Function App config", () => {

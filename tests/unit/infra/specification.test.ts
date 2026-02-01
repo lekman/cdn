@@ -43,12 +43,12 @@ describe("Unit: Specification - tags", () => {
 });
 
 describe("Unit: Specification - storage", () => {
-  test("dev storage account name contains dev", () => {
-    expect(dev.storage.accountName).toContain("dev");
+  test("dev storage account uses CAF prefix st", () => {
+    expect(dev.storage.accountName).toBe("stcdndevuksouth001");
   });
 
-  test("prod storage account name contains prod", () => {
-    expect(prod.storage.accountName).toContain("prod");
+  test("prod storage account uses CAF prefix st", () => {
+    expect(prod.storage.accountName).toBe("stcdnproduksouth001");
   });
 
   test("container name is images", () => {
@@ -66,12 +66,12 @@ describe("Unit: Specification - storage", () => {
 });
 
 describe("Unit: Specification - Cosmos DB", () => {
-  test("dev account name contains dev", () => {
-    expect(dev.cosmosDb.accountName).toContain("dev");
+  test("dev account uses CAF prefix cosmos", () => {
+    expect(dev.cosmosDb.accountName).toBe("cosmos-cdn-dev-uksouth-001");
   });
 
-  test("prod account name contains prod", () => {
-    expect(prod.cosmosDb.accountName).toContain("prod");
+  test("prod account uses CAF prefix cosmos", () => {
+    expect(prod.cosmosDb.accountName).toBe("cosmos-cdn-prod-uksouth-001");
   });
 
   test("database name is cdn", () => {
@@ -102,12 +102,16 @@ describe("Unit: Specification - Service Bus", () => {
 });
 
 describe("Unit: Specification - Function App", () => {
-  test("dev app name contains dev", () => {
-    expect(dev.functionApp.appName).toContain("dev");
+  test("dev app uses CAF prefix func", () => {
+    expect(dev.functionApp.appName).toBe("func-cdn-dev-uksouth-001");
   });
 
-  test("prod app name contains prod", () => {
-    expect(prod.functionApp.appName).toContain("prod");
+  test("prod app uses CAF prefix func", () => {
+    expect(prod.functionApp.appName).toBe("func-cdn-prod-uksouth-001");
+  });
+
+  test("dev plan uses Azure auto-managed consumption plan name", () => {
+    expect(dev.functionApp.planName).toBe("UKSouthLinuxDynamicPlan");
   });
 
   test("runtime is node", () => {
@@ -116,8 +120,12 @@ describe("Unit: Specification - Function App", () => {
 });
 
 describe("Unit: Specification - Key Vault", () => {
-  test("dev vault name contains dev", () => {
-    expect(dev.keyVault.vaultName).toContain("dev");
+  test("dev vault uses CAF prefix kv", () => {
+    expect(dev.keyVault.vaultName).toBe("kv-cdn-dev-uksouth-001");
+  });
+
+  test("prod vault uses CAF prefix kv", () => {
+    expect(prod.keyVault.vaultName).toBe("kv-cdn-prod-uksouth-001");
   });
 
   test("secret name is cloudflare-api-token", () => {
@@ -139,12 +147,22 @@ describe("Unit: Specification - APIM", () => {
   });
 });
 
-describe("Unit: Specification - stack reference", () => {
-  test("dev references rag-infra/dev", () => {
-    expect(dev.ragInfraStack).toBe("rag-infra/dev");
+describe("Unit: Specification - resource group", () => {
+  test("dev resource group uses CAF prefix rg", () => {
+    expect(dev.resourceGroup.name).toBe("rg-cdn-dev-uksouth-001");
   });
 
-  test("prod references rag-infra/prod", () => {
-    expect(prod.ragInfraStack).toBe("rag-infra/prod");
+  test("prod resource group uses CAF prefix rg", () => {
+    expect(prod.resourceGroup.name).toBe("rg-cdn-prod-uksouth-001");
+  });
+});
+
+describe("Unit: Specification - stack reference", () => {
+  test("dev references lekman/rag-infra/dev", () => {
+    expect(dev.ragInfraStack).toBe("lekman/rag-infra/dev");
+  });
+
+  test("prod references lekman/rag-infra/prod", () => {
+    expect(prod.ragInfraStack).toBe("lekman/rag-infra/prod");
   });
 });
