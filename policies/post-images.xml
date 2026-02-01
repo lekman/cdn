@@ -1,0 +1,204 @@
+<policies>
+  <inbound>
+    <base />
+
+    <!-- WBS 1: Request Validation -->
+    <!-- Validate Content-Type: only image/png, image/jpeg, image/gif, image/webp -->
+    <choose>
+      <when condition="@(!new [] { &quot;image/png&quot;, &quot;image/jpeg&quot;, &quot;image/gif&quot;, &quot;image/webp&quot; }.Contains(context.Request.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;)))">
+        <return-response>
+          <set-status code="400" reason="Bad Request" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error": "Unsupported Content-Type. Accepted: image/png, image/jpeg, image/gif, image/webp"}</set-body>
+        </return-response>
+      </when>
+    </choose>
+
+    <!-- Validate body is not empty -->
+    <choose>
+      <when condition="@(context.Request.Body == null || context.Request.Body.As&lt;byte[]&gt;(preserveContent: true).Length == 0)">
+        <return-response>
+          <set-status code="400" reason="Bad Request" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error": "Request body is empty"}</set-body>
+        </return-response>
+      </when>
+    </choose>
+
+    <!-- Enforce 25MB size limit (26214400 bytes) -->
+    <choose>
+      <when condition="@(context.Request.Body.As&lt;byte[]&gt;(preserveContent: true).Length &gt; 26214400)">
+        <return-response>
+          <set-status code="413" reason="Payload Too Large" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error": "Image exceeds maximum size of 25MB"}</set-body>
+        </return-response>
+      </when>
+    </choose>
+
+    <!-- WBS 2: Hash Computation -->
+    <!-- Store request body bytes for reuse (hash, blob write) -->
+    <set-variable name="requestBody" value="@(context.Request.Body.As&lt;byte[]&gt;(preserveContent: true))" />
+
+    <!-- Compute SHA-256 hash, encode as base64url (RFC 4648, no padding) -->
+    <set-variable name="hash" value="@{
+      var bytes = (byte[])context.Variables[&quot;requestBody&quot;];
+      var sha256 = System.Security.Cryptography.SHA256.Create();
+      var hashBytes = sha256.ComputeHash(bytes);
+      var base64 = Convert.ToBase64String(hashBytes);
+      return base64.Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    }" />
+
+    <!-- Capture request metadata -->
+    <set-variable name="contentType" value="@(context.Request.Headers.GetValueOrDefault(&quot;Content-Type&quot;, &quot;&quot;))" />
+    <set-variable name="bodySize" value="@(((byte[])context.Variables[&quot;requestBody&quot;]).Length)" />
+
+    <!-- WBS 3: Deduplication Check -->
+    <!-- Query Cosmos DB for existing document with this hash -->
+    <send-request mode="new" response-variable-name="cosmosReadResponse" timeout="10" ignore-error="false">
+      <set-url>@($"{{{{cosmos-endpoint}}}}/dbs/cdn/colls/images/docs/{context.Variables["hash"]}")</set-url>
+      <set-method>GET</set-method>
+      <set-header name="x-ms-version" exists-action="override">
+        <value>2018-12-31</value>
+      </set-header>
+      <set-header name="x-ms-documentdb-partitionkey" exists-action="override">
+        <value>@($"[\"{context.Variables["hash"]}\"]")</value>
+      </set-header>
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <authentication-managed-identity resource="https://cosmos.azure.com" />
+    </send-request>
+
+    <!-- If document exists, return it (dedup short-circuit) -->
+    <choose>
+      <when condition="@(((IResponse)context.Variables[&quot;cosmosReadResponse&quot;]).StatusCode == 200)">
+        <return-response>
+          <set-status code="201" reason="Created" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>@{
+            var doc = ((IResponse)context.Variables["cosmosReadResponse"]).Body.As&lt;JObject&gt;();
+            var result = new JObject();
+            result["id"] = doc["id"];
+            result["url"] = doc["url"];
+            result["status"] = doc["status"];
+            result["size"] = doc["size"];
+            result["contentType"] = doc["contentType"];
+            result["createdAt"] = doc["createdAt"];
+            return result.ToString();
+          }</set-body>
+        </return-response>
+      </when>
+    </choose>
+
+    <!-- WBS 4: Blob Storage Write -->
+    <send-request mode="new" response-variable-name="blobResponse" timeout="30" ignore-error="false">
+      <set-url>@($"{{{{blob-endpoint}}}}/images/{context.Variables["hash"]}")</set-url>
+      <set-method>PUT</set-method>
+      <set-header name="x-ms-blob-type" exists-action="override">
+        <value>BlockBlob</value>
+      </set-header>
+      <set-header name="x-ms-version" exists-action="override">
+        <value>2021-08-06</value>
+      </set-header>
+      <set-header name="Content-Type" exists-action="override">
+        <value>@((string)context.Variables["contentType"])</value>
+      </set-header>
+      <set-body>@((byte[])context.Variables["requestBody"])</set-body>
+      <authentication-managed-identity resource="https://storage.azure.com" />
+    </send-request>
+
+    <!-- WBS 5: Cosmos DB Document Creation -->
+    <set-variable name="createdAt" value="@(DateTime.UtcNow.ToString(&quot;o&quot;))" />
+
+    <send-request mode="new" response-variable-name="cosmosCreateResponse" timeout="10" ignore-error="false">
+      <set-url>{{cosmos-endpoint}}/dbs/cdn/colls/images/docs</set-url>
+      <set-method>POST</set-method>
+      <set-header name="x-ms-version" exists-action="override">
+        <value>2018-12-31</value>
+      </set-header>
+      <set-header name="x-ms-documentdb-partitionkey" exists-action="override">
+        <value>@($"[\"{context.Variables["hash"]}\"]")</value>
+      </set-header>
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>@{
+        var hash = (string)context.Variables["hash"];
+        var doc = new JObject();
+        doc["id"] = hash;
+        doc["url"] = $"https://img.lekman.com/{hash}";
+        doc["status"] = "processing";
+        doc["size"] = (int)context.Variables["bodySize"];
+        doc["contentType"] = (string)context.Variables["contentType"];
+        doc["width"] = null;
+        doc["height"] = null;
+        doc["exif"] = null;
+        doc["createdAt"] = (string)context.Variables["createdAt"];
+        doc["ttl"] = 604800;
+        return doc.ToString();
+      }</set-body>
+      <authentication-managed-identity resource="https://cosmos.azure.com" />
+    </send-request>
+
+    <!-- WBS 6: Service Bus Queue (non-fatal) -->
+    <send-request mode="new" response-variable-name="serviceBusResponse" timeout="10" ignore-error="true">
+      <set-url>{{servicebus-endpoint}}/image-metadata-extraction/messages</set-url>
+      <set-method>POST</set-method>
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>@{
+        var hash = (string)context.Variables["hash"];
+        return new JObject(new JProperty("hash", hash)).ToString();
+      }</set-body>
+      <authentication-managed-identity resource="https://servicebus.azure.net" />
+    </send-request>
+  </inbound>
+
+  <backend>
+    <base />
+  </backend>
+
+  <outbound>
+    <base />
+
+    <!-- WBS 7: Response Construction -->
+    <return-response>
+      <set-status code="201" reason="Created" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>@{
+        var hash = (string)context.Variables["hash"];
+        var result = new JObject();
+        result["id"] = hash;
+        result["url"] = $"https://img.lekman.com/{hash}";
+        result["status"] = "processing";
+        result["size"] = (int)context.Variables["bodySize"];
+        result["contentType"] = (string)context.Variables["contentType"];
+        result["createdAt"] = (string)context.Variables["createdAt"];
+        return result.ToString();
+      }</set-body>
+    </return-response>
+  </outbound>
+
+  <on-error>
+    <base />
+    <return-response>
+      <set-status code="500" reason="Internal Server Error" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"error": "An internal error occurred"}</set-body>
+    </return-response>
+  </on-error>
+</policies>
