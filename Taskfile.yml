@@ -86,6 +86,16 @@ tasks:
           brew install semgrep
         fi
 
+        # Install or upgrade pulumi
+        echo -e "${GREEN}Checking pulumi...${NC}"
+        if brew list pulumi &>/dev/null; then
+          echo -e "${YELLOW}Upgrading pulumi...${NC}"
+          brew upgrade pulumi
+        else
+          echo -e "${YELLOW}Installing pulumi...${NC}"
+          brew install pulumi
+        fi
+
         # Install project dependencies
         echo ""
         echo -e "${GREEN}Installing project dependencies...${NC}"
@@ -320,6 +330,14 @@ tasks:
         echo -e "  ${GREEN}task test:coverage${NC}               ${YELLOW}cov${NC}       Run tests with coverage report"
         echo -e "  ${GREEN}task quality${NC}                     ${YELLOW}q${NC}         Run all quality checks"
         echo ""
+        echo -e "${BOLD}Infrastructure:${NC}"
+        echo -e "  ${GREEN}task infra:init${NC}                  ${YELLOW}init${NC}      Initialize Pulumi stacks (dev + prod)"
+        echo -e "  ${GREEN}task infra:preview${NC}               ${YELLOW}pre${NC}       Preview changes (default: dev)"
+        echo -e "  ${GREEN}task infra:up${NC}                    ${YELLOW}up${NC}        Deploy to Azure (default: dev)"
+        echo -e "  ${GREEN}task infra:down${NC}                  ${YELLOW}down${NC}      Destroy resources (default: dev)"
+        echo -e "  ${GREEN}task infra:outputs${NC}               ${YELLOW}out${NC}       Show stack outputs as JSON"
+        echo -e "  ${GREEN}task infra:refresh${NC}               ${YELLOW}ref${NC}       Refresh Pulumi state from Azure"
+        echo ""
         echo -e "${BOLD}Security:${NC}"
         echo -e "  ${GREEN}task security:scan${NC}               ${YELLOW}s:s${NC}       Run semgrep security scanner"
         echo ""
@@ -527,3 +545,124 @@ tasks:
 
         echo ""
         echo -e "${GREEN}✓${NC} All quality checks passed"
+
+  infra:check-prereqs:
+    desc: "Check infrastructure prerequisites (az, pulumi, login)"
+    internal: true
+    silent: true
+    cmds:
+      - |
+        set -euo pipefail
+        RED='\033[0;31m'
+        CYAN='\033[0;36m'
+        NC='\033[0m'
+
+        if ! command -v pulumi &>/dev/null; then
+          echo -e "${RED}Error:${NC} Pulumi is not installed."
+          echo -e "  Install: ${CYAN}brew install pulumi${NC}"
+          echo -e "  Or run:  ${CYAN}task install${NC}"
+          exit 1
+        fi
+
+        if ! command -v az &>/dev/null; then
+          echo -e "${RED}Error:${NC} Azure CLI is not installed."
+          echo -e "  Install: ${CYAN}brew install azure-cli${NC}"
+          exit 1
+        fi
+
+        if ! az account show &>/dev/null 2>&1; then
+          echo -e "${RED}Error:${NC} Not logged into Azure."
+          echo -e "  Run: ${CYAN}az login${NC}"
+          exit 1
+        fi
+
+        if ! pulumi whoami &>/dev/null 2>&1; then
+          echo -e "${RED}Error:${NC} Not logged into Pulumi."
+          echo -e "  Run: ${CYAN}pulumi login${NC}"
+          exit 1
+        fi
+
+  infra:init:
+    desc: "Initialize Pulumi stacks (dev and prod)"
+    silent: true
+    aliases: [init]
+    dir: infra
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        CYAN='\033[0;36m'
+        NC='\033[0m'
+
+        echo -e "${CYAN}Initializing Pulumi stacks${NC}"
+        pulumi stack init dev 2>/dev/null || echo -e "${GREEN}dev stack already exists${NC}"
+        pulumi stack init prod 2>/dev/null || echo -e "${GREEN}prod stack already exists${NC}"
+        echo -e "${GREEN}✓${NC} Stacks initialized"
+
+  infra:preview:
+    desc: "Preview infrastructure changes (usage: task infra:preview -- dev)"
+    aliases: [pre]
+    silent: true
+    dir: infra
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        GREEN='\033[0;32m'
+        CYAN='\033[0;36m'
+        NC='\033[0m'
+        echo -e "${CYAN}Previewing infrastructure changes for ${GREEN}{{.STACK}}${NC}"
+        pulumi preview -s "{{.STACK}}"
+
+  infra:up:
+    desc: "Deploy infrastructure to Azure (usage: task infra:up -- dev)"
+    aliases: [up]
+    silent: true
+    dir: infra
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        pulumi up -s "{{.STACK}}" --yes --skip-preview --suppress-outputs
+
+  infra:down:
+    desc: "Destroy infrastructure on Azure (usage: task infra:down -- dev)"
+    aliases: [down]
+    silent: true
+    dir: infra
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        pulumi destroy -s "{{.STACK}}" --yes --skip-preview --suppress-outputs
+
+  infra:outputs:
+    desc: "Show stack outputs as JSON (usage: task infra:outputs -- dev)"
+    aliases: [out]
+    silent: true
+    dir: infra
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - pulumi stack output -s "{{.STACK}}" --json
+
+  infra:refresh:
+    desc: "Refresh Pulumi state from Azure (usage: task infra:refresh -- dev)"
+    aliases: [ref]
+    silent: true
+    dir: infra
+    vars:
+      STACK: '{{.CLI_ARGS | default "dev"}}'
+    deps: [infra:check-prereqs]
+    cmds:
+      - |
+        set -euo pipefail
+        pulumi refresh -s "{{.STACK}}" --skip-preview --clear-pending-creates --suppress-outputs --yes

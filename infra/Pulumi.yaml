@@ -1,0 +1,3 @@
+name: cdn-infra
+runtime: nodejs
+description: Edge Cache CDN Azure infrastructure (Storage, Cosmos DB, Functions, APIM API)

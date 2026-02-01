@@ -1,0 +1,122 @@
+# Infrastructure deployment pipeline for CDN Pulumi stack.
+# Runs preview on PRs, deploys on push to main (when infra files change).
+# Uses OIDC (federated identity) for Azure authentication.
+#
+# Required secrets:
+#   AZURE_CLIENT_ID       — Azure AD app registration client ID (OIDC)
+#   AZURE_TENANT_ID       — Azure AD tenant ID
+#   AZURE_SUBSCRIPTION_ID — Azure subscription ID
+#   PULUMI_ACCESS_TOKEN   — Pulumi Cloud access token for state management
+
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/deploy-infra.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "infra/**"
+      - ".github/workflows/deploy-infra.yml"
+  workflow_dispatch:
+    inputs:
+      stack:
+        description: "Pulumi stack to deploy"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - prod
+      action:
+        description: "Pulumi action"
+        required: true
+        default: "preview"
+        type: choice
+        options:
+          - preview
+          - up
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: infra-${{ github.event.inputs.stack || 'dev' }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  PULUMI_STACK: ${{ github.event.inputs.stack || 'dev' }}
+
+jobs:
+  preview:
+    name: Preview (${{ github.event.inputs.stack || 'dev' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'preview')
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: bun install --frozen-lockfile
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Pulumi Preview
+        uses: pulumi/actions@v6
+        with:
+          command: preview
+          stack-name: ${{ env.PULUMI_STACK }}
+          work-dir: infra
+          comment-on-pr: true
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  deploy:
+    name: Deploy (${{ github.event.inputs.stack || 'dev' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'up')
+    environment: ${{ github.event.inputs.stack || 'dev' }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install infra dependencies
+        working-directory: infra
+        run: bun install --frozen-lockfile
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Pulumi Up
+        uses: pulumi/actions@v6
+        with:
+          command: up
+          stack-name: ${{ env.PULUMI_STACK }}
+          work-dir: infra
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
