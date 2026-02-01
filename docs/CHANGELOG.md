@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.1](https://github.com/lekman/cdn/compare/cdn-v1.4.0...cdn-v1.4.1) (2026-02-01)
+
+
+### Documentation
+
+* **delete:** add implementation plan for delete pipeline feature ([#14](https://github.com/lekman/cdn/issues/14)) ([655d586](https://github.com/lekman/cdn/commit/655d586f48ec87beb637db0714bfee5b1c4f7891))
+
 ## [1.4.0](https://github.com/lekman/cdn/compare/cdn-v1.3.0...cdn-v1.4.0) (2026-02-01)
 
 
