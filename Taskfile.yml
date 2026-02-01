@@ -32,231 +32,19 @@ vars:
   PROJECT_NAME: "cdn"
 
 tasks:
-  brew:install:
-    desc: Installs or upgrades Homebrew
-    silent: true
-    cmds:
-      - |
-        set -euo pipefail
-        if ! command -v brew &>/dev/null; then
-          /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-        else
-          brew update &>/dev/null;
-        fi
-    
-  brew:install:pkg:
-    desc: Installs or upgrades a Homebrew package
-    silent: true
-    vars:
-      PACKAGE: '{{.PACKAGE}}'
-    cmds:
-      - |
-        set -euo pipefail
-        if brew list "{{.PACKAGE}}" &>/dev/null; then
-          brew upgrade "{{.PACKAGE}}" 2>/dev/null || true
-        else
-          brew install "{{.PACKAGE}}"
-        fi
-
   install:
     desc: "Install/upgrade required development tools"
     aliases: [i]
     silent: true
     cmds:
-      - |
-        set -euo pipefail
-
-        GREEN='\033[0;32m'
-        YELLOW='\033[0;33m'
-        CYAN='\033[0;36m'
-        RED='\033[0;31m'
-        NC='\033[0m'
-
-        echo -e "${CYAN}Installing Development Tools${NC}"
-        task brew:install
-        task brew:install:pkg PACKAGE="oven-sh/bun/bun"
-        task brew:install:pkg PACKAGE="go-task"
-        task brew:install:pkg PACKAGE="semgrep"
-        task brew:install:pkg PACKAGE="pulumi"
-        task brew:install:pkg PACKAGE="biome"
-        task brew:install:pkg PACKAGE="azure-cli"
-
-        # Install Claude Viz globally via npm
-        npm install -g claude-viz &>/dev/null
-
-        # Install project dependencies
-        echo ""
-        echo -e "${GREEN}Installing project dependencies...${NC}"
-        bun install
-
-        # Install infra dependencies
-        if [ -d "infra" ]; then
-          echo -e "${GREEN}Installing infra dependencies...${NC}"
-          cd infra && bun install && cd ..
-          echo -e "${GREEN}Installing policy pack dependencies...${NC}"
-          cd infra/security/policy-pack && bun install && cd ../../..
-        fi
+      - bun scripts/install.ts
 
   setup:repo:
     desc: "Configure GitHub repository secrets for CI/CD"
     aliases: [setup]
     silent: true
     cmds:
-      - |
-        set -euo pipefail
-
-        GREEN='\033[0;32m'
-        YELLOW='\033[0;33m'
-        CYAN='\033[0;36m'
-        RED='\033[0;31m'
-        BOLD='\033[1m'
-        NC='\033[0m'
-
-        echo -e "${CYAN}GitHub Repository Secret Configuration${NC}"
-
-        # Required secrets for CI/CD
-        SECRETS=(
-          "CODECOV_TOKEN"
-          "RELEASE_BOT_APP_ID"
-          "RELEASE_BOT_PRIVATE_KEY"
-          "CLAUDE_CODE_OAUTH_TOKEN"
-        )
-
-        # Check gh CLI
-        if ! command -v gh &>/dev/null; then
-          echo -e "${RED}Error:${NC} GitHub CLI (gh) is not installed"
-          echo "Install from: https://cli.github.com"
-          exit 1
-        fi
-
-        # Check gh authentication — login interactively if needed
-        if ! gh auth status &>/dev/null 2>&1; then
-          echo -e "${YELLOW}Not logged in to GitHub. Launching login...${NC}"
-          gh auth login -p ssh --skip-ssh-key
-        fi
-
-        # Ensure gh uses SSH protocol
-        CURRENT_PROTO=$(gh config get git_protocol 2>/dev/null || echo "")
-        if [ "$CURRENT_PROTO" != "ssh" ]; then
-          gh config set git_protocol ssh
-          echo -e "${GREEN}✓${NC} Set gh git_protocol to ssh"
-        fi
-
-        # Try to resolve secrets from 1Password via .env
-        OP_AVAILABLE=false
-        if command -v op &>/dev/null; then
-          echo -e "${GREEN}1Password CLI detected${NC}"
-          # Source resolved env vars if op:export task exists
-          EXPORT_FILE=$(task op:export 2>/dev/null) && {
-            if [ -f "$EXPORT_FILE" ]; then
-              source "$EXPORT_FILE"
-              OP_AVAILABLE=true
-              echo -e "${GREEN}Secrets resolved from 1Password${NC}"
-            fi
-          } || {
-            echo -e "${YELLOW}Could not resolve secrets from 1Password (task op:export failed)${NC}"
-          }
-        else
-          echo -e "${YELLOW}1Password CLI not found — will prompt for values${NC}"
-        fi
-
-        # Prevent sourced tokens from overriding gh CLI auth
-        unset GITHUB_TOKEN GH_TOKEN
-
-        echo ""
-
-        # Detect repo from git remote
-        REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
-        if [ -z "$REPO" ]; then
-          echo -e "${RED}Error:${NC} Could not detect GitHub repository"
-          echo "Run from inside a git repo with a GitHub remote"
-          exit 1
-        fi
-        echo -e "Repository: ${GREEN}${REPO}${NC}"
-        echo ""
-
-        # Get existing secrets
-        EXISTING=$(gh secret list --repo "$REPO" --json name --jq '.[].name' 2>/dev/null || echo "")
-
-        CONFIGURED=0
-        SKIPPED=0
-        FAILED=0
-
-        for SECRET in "${SECRETS[@]}"; do
-          # Check if secret already exists
-          if echo "$EXISTING" | grep -q "^${SECRET}$"; then
-            echo -e "  ${GREEN}✓${NC} ${SECRET} (already configured)"
-            SKIPPED=$((SKIPPED + 1))
-            continue
-          fi
-
-          # Try to get value from resolved env
-          VALUE="${!SECRET:-}"
-
-          if [ -n "$VALUE" ] && [ "$VALUE" != "op://"* ]; then
-            # Have a resolved value — set it
-            if gh secret set "$SECRET" --repo "$REPO" --body "$VALUE"; then
-              echo -e "  ${GREEN}✓${NC} ${SECRET} (set from 1Password)"
-              CONFIGURED=$((CONFIGURED + 1))
-            else
-              echo -e "  ${RED}✗${NC} ${SECRET} (failed to set)"
-              FAILED=$((FAILED + 1))
-            fi
-          else
-            # Prompt for value interactively
-            echo -e "  ${YELLOW}?${NC} ${SECRET} — no resolved value available"
-
-            if [ "$SECRET" = "RELEASE_BOT_PRIVATE_KEY" ]; then
-              echo -e "    ${CYAN}Paste PEM private key (end with empty line):${NC}"
-              PEM_VALUE=""
-              while IFS= read -r line; do
-                [ -z "$line" ] && break
-                PEM_VALUE="${PEM_VALUE}${line}"$'\n'
-              done
-
-              if [ -n "$PEM_VALUE" ]; then
-                if echo "$PEM_VALUE" | gh secret set "$SECRET" --repo "$REPO"; then
-                  echo -e "    ${GREEN}✓${NC} ${SECRET} (set from input)"
-                  CONFIGURED=$((CONFIGURED + 1))
-                else
-                  echo -e "    ${RED}✗${NC} ${SECRET} (failed to set)"
-                  FAILED=$((FAILED + 1))
-                fi
-              else
-                echo -e "    ${YELLOW}⊘${NC} ${SECRET} (skipped)"
-                FAILED=$((FAILED + 1))
-              fi
-            else
-              read -rp "    Enter value (or press Enter to skip): " INPUT_VALUE
-              if [ -n "$INPUT_VALUE" ]; then
-                if gh secret set "$SECRET" --repo "$REPO" --body "$INPUT_VALUE"; then
-                  echo -e "    ${GREEN}✓${NC} ${SECRET} (set from input)"
-                  CONFIGURED=$((CONFIGURED + 1))
-                else
-                  echo -e "    ${RED}✗${NC} ${SECRET} (failed to set)"
-                  FAILED=$((FAILED + 1))
-                fi
-              else
-                echo -e "    ${YELLOW}⊘${NC} ${SECRET} (skipped)"
-                FAILED=$((FAILED + 1))
-              fi
-            fi
-          fi
-        done
-
-        echo ""
-        echo -e "${BOLD}Summary:${NC}"
-        echo -e "  Configured: ${GREEN}${CONFIGURED}${NC}"
-        echo -e "  Existing:   ${YELLOW}${SKIPPED}${NC}"
-        echo -e "  Remaining:  ${RED}${FAILED}${NC}"
-
-        if [ "$FAILED" -gt 0 ]; then
-          echo ""
-          echo -e "${YELLOW}Re-run 'task setup:repo' after resolving remaining secrets${NC}"
-        else
-          echo ""
-          echo -e "${GREEN}✓${NC} All repository secrets configured"
-        fi
+      - bun scripts/setup-repo.ts
 
   clear:
     desc: "Remove caches and temp files, reinstall dependencies"
@@ -342,7 +130,7 @@ tasks:
         echo ""
         echo -e "${BOLD}Utilities:${NC}"
         echo -e "  ${GREEN}task warp${NC}                        ${YELLOW}w${NC}         Open repo in Warp terminal"
-        echo -e "  ${GREEN}task warp:claude${NC}                 ${YELLOW}wc${NC}        Open Claude Code in Warp (yellow tab)"
+        echo -e "  ${GREEN}task warp:claude${NC}                 ${YELLOW}wc${NC}        Open Claude Code in Warp"
         echo ""
         echo -e "${BOLD}Task Libraries:${NC}"
         echo -e "  ${GREEN}task git:<command>${NC}                         Git & GitHub operations"
@@ -501,14 +289,7 @@ tasks:
     aliases: [plan]
     silent: true
     cmds:
-      - |
-        if lsof -i :8888 -sTCP:LISTEN >/dev/null 2>&1; then
-          open http://localhost:8888
-        else
-          nohup claude-viz >/dev/null 2>&1 &
-          sleep 1
-          open http://localhost:8888
-        fi
+      - bun scripts/open-plan.ts
 
   warp:
     desc: "Open repo in Warp terminal (blue tab)"
@@ -648,87 +429,7 @@ tasks:
       STACK: '{{.CLI_ARGS | default "dev"}}'
     deps: [infra:check-prereqs]
     cmds:
-      - |
-        set -euo pipefail
-        GREEN='\033[0;32m'
-        YELLOW='\033[0;33m'
-        CYAN='\033[0;36m'
-        RED='\033[0;31m'
-        NC='\033[0m'
-
-        echo -e "${CYAN}Bootstrapping Function App + consumption plan for ${GREEN}{{.STACK}}${NC}"
-        echo -e "${YELLOW}Required on MSDN subscriptions where ARM API cannot create App Service Plans${NC}"
-        echo ""
-
-        # Read spec values from Pulumi config/outputs
-        cd infra
-        STACK="{{.STACK}}"
-        RG=$(pulumi config get --stack "$STACK" --path 'cdn:resourceGroupName' 2>/dev/null || echo "")
-        if [ -z "$RG" ]; then
-          # Fall back to stack outputs if config not set
-          RG=$(pulumi stack output --stack "$STACK" resourceGroupName 2>/dev/null || echo "")
-        fi
-        if [ -z "$RG" ]; then
-          echo -e "${RED}Error:${NC} Cannot determine resource group name."
-          echo "Run 'task infra:up -- {{.STACK}}' first to create the resource group."
-          exit 1
-        fi
-
-        SA=$(pulumi stack output --stack "$STACK" storageAccountName 2>/dev/null || echo "")
-        FUNC=$(pulumi stack output --stack "$STACK" functionAppName 2>/dev/null || echo "")
-
-        if [ -z "$SA" ]; then
-          echo -e "${RED}Error:${NC} Storage account not found in stack outputs."
-          echo "Run 'task infra:up -- {{.STACK}}' first to create base resources."
-          exit 1
-        fi
-
-        if [ -z "$FUNC" ]; then
-          echo -e "${RED}Error:${NC} Function app name not found in stack outputs."
-          exit 1
-        fi
-
-        # Check if function app already exists
-        if az functionapp show --name "$FUNC" --resource-group "$RG" &>/dev/null 2>&1; then
-          echo -e "${GREEN}✓${NC} Function app ${FUNC} already exists"
-          echo ""
-
-          # Check if already imported into Pulumi
-          IMPORTED=$(cd /Users/tobiaslekman/Repo/cdn/infra && pulumi stack --stack "$STACK" export 2>/dev/null | \
-            python3 -c 'import json,sys;d=json.load(sys.stdin);print("yes" if any("WebApp" in r.get("type","") for r in d.get("deployment",{}).get("resources",[])) else "no")' 2>/dev/null || echo "no")
-          if [ "$IMPORTED" = "yes" ]; then
-            echo -e "${GREEN}✓${NC} Already imported into Pulumi state"
-          else
-            echo -e "${CYAN}Importing into Pulumi state...${NC}"
-            SUB_ID=$(az account show --query id -o tsv)
-            IMPORT_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Web/sites/${FUNC}"
-            pulumi import --stack "$STACK" --yes azure-native:web:WebApp func "$IMPORT_ID"
-            echo -e "${GREEN}✓${NC} Imported into Pulumi state"
-          fi
-          exit 0
-        fi
-
-        echo -e "${CYAN}Creating function app via Azure CLI...${NC}"
-        az functionapp create \
-          --name "$FUNC" \
-          --resource-group "$RG" \
-          --storage-account "$SA" \
-          --consumption-plan-location uksouth \
-          --runtime node --runtime-version 20 \
-          --functions-version 4 --os-type Linux \
-          --assign-identity '[system]' \
-          --query '{name:name, plan:serverFarmId}' -o json
-
-        echo ""
-        echo -e "${CYAN}Importing into Pulumi state...${NC}"
-        SUB_ID=$(az account show --query id -o tsv)
-        IMPORT_ID="/subscriptions/${SUB_ID}/resourceGroups/${RG}/providers/Microsoft.Web/sites/${FUNC}"
-        pulumi import --stack "$STACK" --yes azure-native:web:WebApp func "$IMPORT_ID"
-
-        echo ""
-        echo -e "${GREEN}✓ Bootstrap complete${NC}"
-        echo -e "  Function app: ${FUNC}"
-        echo -e "  Next step: ${CYAN}task infra:up -- {{.STACK}}${NC}"
+      - bun scripts/infra-bootstrap.ts {{.STACK}}
 
   infra:preview:
     desc: "Preview infrastructure changes (usage: task infra:preview -- dev)"
@@ -802,111 +503,4 @@ tasks:
     aliases: [oidc]
     silent: true
     cmds:
-      - |
-        set -euo pipefail
-        GREEN='\033[0;32m'
-        YELLOW='\033[0;33m'
-        CYAN='\033[0;36m'
-        RED='\033[0;31m'
-        NC='\033[0m'
-
-        APP_NAME="github-cdn-ci"
-        REPO="lekman/cdn"
-
-        echo -e "${CYAN}OIDC Setup for CI/CD${NC}"
-        echo "---"
-
-        # Prerequisites
-        for cmd in az gh; do
-          if ! command -v "$cmd" &>/dev/null; then
-            echo -e "${RED}Error:${NC} $cmd is not installed"
-            exit 1
-          fi
-        done
-        if ! az account show &>/dev/null 2>&1; then
-          echo -e "${YELLOW}Not logged in to Azure. Launching login...${NC}"
-          az login
-        fi
-        if ! gh auth status &>/dev/null 2>&1; then
-          echo -e "${YELLOW}Not logged in to GitHub. Launching login...${NC}"
-          gh auth login -p ssh --skip-ssh-key
-        fi
-
-        # Ensure gh uses SSH protocol
-        CURRENT_PROTO=$(gh config get git_protocol 2>/dev/null || echo "")
-        if [ "$CURRENT_PROTO" != "ssh" ]; then
-          gh config set git_protocol ssh
-          echo -e "${GREEN}✓${NC} Set gh git_protocol to ssh"
-        fi
-
-        SUB_ID=$(az account show --query id -o tsv)
-        TENANT_ID=$(az account show --query tenantId -o tsv)
-        echo -e "Subscription: ${GREEN}${SUB_ID}${NC}"
-        echo -e "Tenant:       ${GREEN}${TENANT_ID}${NC}"
-        echo ""
-
-        # 1. App registration
-        echo -e "${CYAN}1. App registration${NC}"
-        APP_ID=$(az ad app list --display-name "$APP_NAME" --query "[0].appId" -o tsv 2>/dev/null)
-        if [ -n "$APP_ID" ]; then
-          echo -e "  ${GREEN}✓${NC} ${APP_NAME} exists (${APP_ID})"
-        else
-          APP_ID=$(az ad app create --display-name "$APP_NAME" --query appId -o tsv)
-          echo -e "  ${GREEN}✓${NC} Created ${APP_NAME} (${APP_ID})"
-        fi
-
-        # 2. Service principal
-        echo -e "${CYAN}2. Service principal${NC}"
-        SP_EXISTS=$(az ad sp list --filter "appId eq '${APP_ID}'" --query "[0].id" -o tsv 2>/dev/null)
-        if [ -n "$SP_EXISTS" ]; then
-          echo -e "  ${GREEN}✓${NC} Already exists"
-        else
-          az ad sp create --id "$APP_ID" > /dev/null
-          echo -e "  ${GREEN}✓${NC} Created"
-        fi
-
-        # 3. Federated identity credentials
-        echo -e "${CYAN}3. Federated identity credentials${NC}"
-        add_credential() {
-          local name="$1" subject="$2"
-          EXISTING=$(az ad app federated-credential list --id "$APP_ID" \
-            --query "[?name=='${name}'].name" -o tsv 2>/dev/null)
-          if [ -n "$EXISTING" ]; then
-            echo -e "  ${GREEN}✓${NC} ${name} exists"
-          else
-            az ad app federated-credential create --id "$APP_ID" --parameters "{
-              \"name\": \"${name}\",
-              \"issuer\": \"https://token.actions.githubusercontent.com\",
-              \"subject\": \"${subject}\",
-              \"audiences\": [\"api://AzureADTokenExchange\"]
-            }" > /dev/null
-            echo -e "  ${GREEN}✓${NC} Created ${name}"
-          fi
-        }
-        add_credential "github-main" "repo:${REPO}:ref:refs/heads/main"
-        add_credential "github-pr" "repo:${REPO}:pull_request"
-        add_credential "github-production" "repo:${REPO}:environment:production"
-
-        # 4. Role assignments (subscription-level)
-        echo -e "${CYAN}4. Role assignments (Contributor + User Access Administrator on subscription)${NC}"
-        SCOPE="/subscriptions/${SUB_ID}"
-        az role assignment create --assignee "$APP_ID" --role Contributor \
-          --scope "$SCOPE" > /dev/null 2>&1 || true
-        echo -e "  ${GREEN}✓${NC} Contributor on subscription ${SUB_ID}"
-        az role assignment create --assignee "$APP_ID" --role "User Access Administrator" \
-          --scope "$SCOPE" > /dev/null 2>&1 || true
-        echo -e "  ${GREEN}✓${NC} User Access Administrator on subscription ${SUB_ID}"
-
-        # 5. GitHub variables
-        echo -e "${CYAN}5. GitHub variables${NC}"
-        gh variable set ARM_CLIENT_ID --repo "$REPO" --body "$APP_ID"
-        echo -e "  ${GREEN}✓${NC} ARM_CLIENT_ID"
-        gh variable set ARM_TENANT_ID --repo "$REPO" --body "$TENANT_ID"
-        echo -e "  ${GREEN}✓${NC} ARM_TENANT_ID"
-        gh variable set ARM_SUBSCRIPTION_ID --repo "$REPO" --body "$SUB_ID"
-        echo -e "  ${GREEN}✓${NC} ARM_SUBSCRIPTION_ID"
-
-        echo ""
-        echo -e "${GREEN}✓ OIDC setup complete${NC}"
-        echo -e "  App:     ${CYAN}${APP_ID}${NC}"
-        echo -e "  Vars:    ARM_CLIENT_ID, ARM_TENANT_ID, ARM_SUBSCRIPTION_ID"
+      - bun scripts/oidc-setup.ts
