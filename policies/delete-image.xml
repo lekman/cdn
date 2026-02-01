@@ -1,0 +1,50 @@
+<policies>
+  <inbound>
+    <base />
+
+    <!-- WBS 1: Path Parameter Extraction -->
+    <!-- Extract {hash} from URL path /cdn/v1/images/{hash} -->
+    <set-variable name="hash" value="@(context.Request.MatchedParameters[&quot;hash&quot;])" />
+
+    <!-- Validate hash: must be exactly 43-character base64url string [A-Za-z0-9_-]{43} -->
+    <choose>
+      <when condition="@{
+        var hash = (string)context.Variables[&quot;hash&quot;];
+        if (hash == null || hash.Length != 43) { return true; }
+        var regex = new System.Text.RegularExpressions.Regex(&quot;^[A-Za-z0-9_-]{43}$&quot;);
+        return !regex.IsMatch(hash);
+      }">
+        <return-response>
+          <set-status code="400" reason="Bad Request" />
+          <set-header name="Content-Type" exists-action="override">
+            <value>application/json</value>
+          </set-header>
+          <set-body>{"error": "Invalid hash format"}</set-body>
+        </return-response>
+      </when>
+    </choose>
+
+    <!-- WBS 2: Route to Delete Function backend -->
+    <set-backend-service base-url="{{function-app-url}}/api/images" />
+  </inbound>
+
+  <backend>
+    <base />
+  </backend>
+
+  <outbound>
+    <base />
+    <!-- Pass through Function response (204, 502) unchanged -->
+  </outbound>
+
+  <on-error>
+    <base />
+    <return-response>
+      <set-status code="500" reason="Internal Server Error" />
+      <set-header name="Content-Type" exists-action="override">
+        <value>application/json</value>
+      </set-header>
+      <set-body>{"error": "An internal error occurred"}</set-body>
+    </return-response>
+  </on-error>
+</policies>
