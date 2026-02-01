@@ -340,6 +340,9 @@ tasks:
         echo -e "${BOLD}Claude Code:${NC}"
         echo -e "  ${GREEN}task claude:plan${NC}                 ${YELLOW}plan${NC}      Open latest Claude plan in IDE"
         echo ""
+        echo -e "${BOLD}Utilities:${NC}"
+        echo -e "  ${GREEN}task warp${NC}                                  Open repo in Warp terminal"
+        echo ""
         echo -e "${BOLD}Task Libraries:${NC}"
         echo -e "  ${GREEN}task git:<command>${NC}                         Git & GitHub operations"
         echo -e "  ${GREEN}task json:<command>${NC}                        JSON linting & validation"
@@ -505,6 +508,13 @@ tasks:
           sleep 1
           open http://localhost:8888
         fi
+
+  warp:
+    desc: "Open repo in Warp terminal"
+    silent: true
+    cmds:
+      - |
+        open -a Warp "{{.ROOT_DIR}}"
 
 
   quality:
