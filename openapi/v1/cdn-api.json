@@ -1,0 +1,540 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Edge Cache CDN API",
+    "version": "1.0.0",
+    "description": "Content-addressed image storage and distribution using Cloudflare CDN with Azure backend. Images stored by SHA-256 hash (immutable, no cache invalidation). Metadata extracted asynchronously, stored in Cosmos DB."
+  },
+  "servers": [
+    {
+      "url": "https://api.lekman.com/cdn/v1",
+      "description": "Production"
+    },
+    {
+      "url": "https://apim-cdn-dev-uksouth-001.azure-api.net/cdn/v1",
+      "description": "Development"
+    }
+  ],
+  "paths": {
+    "/images": {
+      "post": {
+        "operationId": "uploadImage",
+        "summary": "Upload an image to the CDN",
+        "description": "Accepts a raw image binary, computes its SHA-256 hash, stores it in Azure Blob Storage, creates a Cosmos DB metadata document with status 'processing', and queues an async metadata extraction job. Returns the CDN URL and initial metadata. Duplicate uploads (same hash) return the existing document.",
+        "requestBody": {
+          "required": true,
+          "description": "Raw image binary. Maximum size is 25 MB (26214400 bytes).",
+          "content": {
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 26214400,
+                "description": "PNG image binary data."
+              }
+            },
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 26214400,
+                "description": "JPEG image binary data."
+              }
+            },
+            "image/gif": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 26214400,
+                "description": "GIF image binary data."
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary",
+                "maxLength": 26214400,
+                "description": "WebP image binary data."
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Image uploaded. Metadata extraction is in progress.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageUploadResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid Content-Type header or empty request body.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid mTLS client certificate or subscription key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request body exceeds the 25 MB size limit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/images/{hash}": {
+      "get": {
+        "operationId": "getImageMetadata",
+        "summary": "Retrieve image metadata",
+        "description": "Returns the Cosmos DB metadata document for the image identified by its SHA-256 hash. The status field indicates whether metadata extraction has completed.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/HashPath"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Image metadata document.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImageDocument"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid hash format. Must be a 43-character base64url string.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid mTLS client certificate or subscription key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No image found for the given hash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteImage",
+        "summary": "Delete an image from CDN, storage, and metadata",
+        "description": "Deletes the image blob from Azure Blob Storage, removes the Cosmos DB metadata document, and purges the Cloudflare CDN cache for the image URL. This operation is synchronous.",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/HashPath"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Image deleted from storage and metadata, CDN cache purged."
+          },
+          "401": {
+            "description": "Missing or invalid mTLS client certificate or subscription key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No image found for the given hash.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Cloudflare CDN cache purge failed. Storage and metadata were deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Unexpected error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "HashPath": {
+        "name": "hash",
+        "in": "path",
+        "required": true,
+        "description": "Base64url-encoded SHA-256 hash of the image (43 characters, no padding, RFC 4648).",
+        "schema": {
+          "type": "string",
+          "minLength": 43,
+          "maxLength": 43,
+          "pattern": "^[A-Za-z0-9_-]{43}$"
+        }
+      }
+    },
+    "schemas": {
+      "ImageDocument": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "status",
+          "size",
+          "contentType",
+          "createdAt",
+          "ttl"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "description": "Base64url-encoded SHA-256 hash of the image content. Serves as the Cosmos DB partition key."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "CDN URL for the image (https://img.lekman.com/{hash}).",
+            "example": "mailto:john@swagger.com",
+            "pattern": "^(?:(?:[A-Za-z][A-Za-z0-9\\-+.]*):(?:(?://(?:(?:(?:(?:[A-Za-z0-9](?:[\\w\\-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[\\w\\-]{0,61}[A-Za-z0-9])?))*\\.[A-Za-z]{2,})|(?:(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3}|\\[(?:(?:(?:[0-9A-Fa-f]{1,4}):){6}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|::(?:(?:[0-9A-Fa-f]{1,4}):){5}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:[0-9A-Fa-f]{1,4})?::(?:(?:[0-9A-Fa-f]{1,4}):){4}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,1}(?:[0-9A-Fa-f]{1,4}))?::(?:(?:[0-9A-Fa-f]{1,4}):){3}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,2}(?:[0-9A-Fa-f]{1,4}))?::(?:(?:[0-9A-Fa-f]{1,4}):){2}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,3}(?:[0-9A-Fa-f]{1,4}))?::(?:[0-9A-Fa-f]{1,4}):(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,4}(?:[0-9A-Fa-f]{1,4}))?::(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,5}(?:[0-9A-Fa-f]{1,4}))?::(?:[0-9A-Fa-f]{1,4})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,6}(?:[0-9A-Fa-f]{1,4}))?::)\\]))(?:\\:(?:[1-5][0-9]{0,4}|6(?:|[0-4][0-9]{0,3}|5(?:|[0-4][0-9]{0,2}|5(?:|[0-2][0-9]?|3[0-5]?|[4-9])|[6789][0-9]?)|[6789][0-9]{0,2})|[789][0-9]{0,3}))?)(?:/(?:[\\w\\-.~!$&'()*+,;=%@:]+(?:/[\\w\\-.~!$&'()*+,;=%@:]*)*)?)?|(?:/(?:[\\w\\-.~!$&'()*+,;=%@:]+(?:/[\\w\\-.~!$&'()*+,;=%@:]*)*)?)|(?:[\\w\\-.~!$&'()*+,;=%@:]+(?:/[\\w\\-.~!$&'()*+,;=%@:]*)*))?(?:\\?[\\w\\-.~!$&'()*+,;=%@:/\\?]*)?(?:#[\\w\\-.~!$&'()*+,;=%@:/\\?]*)?)?)$",
+            "minLength": 2,
+            "maxLength": 2000,
+            "x-42c-format": "o:uri"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["processing", "ready", "failed"],
+            "description": "Metadata extraction state. 'processing' immediately after upload, 'ready' when extraction succeeds, 'failed' if extraction fails."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 26214400,
+            "description": "Image file size in bytes."
+          },
+          "contentType": {
+            "type": "string",
+            "enum": ["image/png", "image/jpeg", "image/gif", "image/webp"],
+            "description": "MIME type of the uploaded image."
+          },
+          "width": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Image width in pixels. Null until metadata extraction completes."
+          },
+          "height": {
+            "type": ["integer", "null"],
+            "minimum": 1,
+            "description": "Image height in pixels. Null until metadata extraction completes."
+          },
+          "exif": {
+            "description": "EXIF metadata extracted from the image. Null if not present or extraction failed.",
+            "$ref": "#/components/schemas/NullableExifData"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 UTC timestamp of when the image was uploaded.",
+            "example": "2021-08-30T23:01:14.274085491+15:55",
+            "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)(?:\\.[0-9]{1,15})?(?:Z|[+\\-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+            "minLength": 20,
+            "maxLength": 38,
+            "x-42c-format": "o:date-time"
+          },
+          "ttl": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Cosmos DB document time-to-live in seconds. Default is 604800 (7 days)."
+          }
+        }
+      },
+      "ImageUploadResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "status",
+          "size",
+          "contentType",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 43,
+            "maxLength": 43,
+            "pattern": "^[A-Za-z0-9_-]{43}$",
+            "description": "Base64url-encoded SHA-256 hash of the image content. Serves as the Cosmos DB partition key."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "CDN URL for the image (https://img.lekman.com/{hash}).",
+            "example": "mailto:john@swagger.com",
+            "pattern": "^(?:(?:[A-Za-z][A-Za-z0-9\\-+.]*):(?:(?://(?:(?:(?:(?:[A-Za-z0-9](?:[\\w\\-]{0,61}[A-Za-z0-9])?)(?:\\.(?:[A-Za-z0-9](?:[\\w\\-]{0,61}[A-Za-z0-9])?))*\\.[A-Za-z]{2,})|(?:(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3}|\\[(?:(?:(?:[0-9A-Fa-f]{1,4}):){6}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|::(?:(?:[0-9A-Fa-f]{1,4}):){5}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:[0-9A-Fa-f]{1,4})?::(?:(?:[0-9A-Fa-f]{1,4}):){4}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,1}(?:[0-9A-Fa-f]{1,4}))?::(?:(?:[0-9A-Fa-f]{1,4}):){3}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,2}(?:[0-9A-Fa-f]{1,4}))?::(?:(?:[0-9A-Fa-f]{1,4}):){2}(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,3}(?:[0-9A-Fa-f]{1,4}))?::(?:[0-9A-Fa-f]{1,4}):(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,4}(?:[0-9A-Fa-f]{1,4}))?::(?:(?:[0-9A-Fa-f]{1,4}):(?:[0-9A-Fa-f]{1,4})|(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])(?:\\.(?:25[0-5]|(?:2[0-4]|1[0-9]|[1-9]|)[0-9])){3})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,5}(?:[0-9A-Fa-f]{1,4}))?::(?:[0-9A-Fa-f]{1,4})|(?:(?:(?:[0-9A-Fa-f]{1,4}):){0,6}(?:[0-9A-Fa-f]{1,4}))?::)\\]))(?:\\:(?:[1-5][0-9]{0,4}|6(?:|[0-4][0-9]{0,3}|5(?:|[0-4][0-9]{0,2}|5(?:|[0-2][0-9]?|3[0-5]?|[4-9])|[6789][0-9]?)|[6789][0-9]{0,2})|[789][0-9]{0,3}))?)(?:/(?:[\\w\\-.~!$&'()*+,;=%@:]+(?:/[\\w\\-.~!$&'()*+,;=%@:]*)*)?)?|(?:/(?:[\\w\\-.~!$&'()*+,;=%@:]+(?:/[\\w\\-.~!$&'()*+,;=%@:]*)*)?)|(?:[\\w\\-.~!$&'()*+,;=%@:]+(?:/[\\w\\-.~!$&'()*+,;=%@:]*)*))?(?:\\?[\\w\\-.~!$&'()*+,;=%@:/\\?]*)?(?:#[\\w\\-.~!$&'()*+,;=%@:/\\?]*)?)?)$",
+            "minLength": 2,
+            "maxLength": 2000,
+            "x-42c-format": "o:uri"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["processing", "ready", "failed"],
+            "description": "Metadata extraction state. Will be 'processing' for new uploads, or 'ready'/'failed' for duplicate uploads."
+          },
+          "size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 26214400,
+            "description": "Image file size in bytes."
+          },
+          "contentType": {
+            "type": "string",
+            "enum": ["image/png", "image/jpeg", "image/gif", "image/webp"],
+            "description": "MIME type of the uploaded image."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "ISO 8601 UTC timestamp of when the image was first uploaded.",
+            "example": "2021-08-30T23:01:14.274085491+15:55",
+            "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)(?:\\.[0-9]{1,15})?(?:Z|[+\\-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+            "minLength": 20,
+            "maxLength": 38,
+            "x-42c-format": "o:date-time"
+          }
+        }
+      },
+      "ExifData": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "EXIF DateTimeOriginal as ISO 8601 UTC timestamp. Null if not present in the image.",
+            "example": "2026-01-31T10:00:00Z",
+            "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)(?:\\.[0-9]{1,15})?(?:Z|[+\\-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+            "minLength": 20,
+            "maxLength": 38,
+            "x-42c-format": "o:date-time"
+          },
+          "location": {
+            "description": "GPS coordinates extracted from EXIF data. Null if not present in the image.",
+            "$ref": "#/components/schemas/NullableGeoLocation"
+          },
+          "camera": {
+            "type": ["string", "null"],
+            "pattern": "^[\\x20-\\x7E]{0,256}$",
+            "maxLength": 256,
+            "description": "Camera make and model from EXIF data (e.g. 'iPhone 15 Pro'). Null if not present in the image."
+          }
+        }
+      },
+      "NullableExifData": {
+        "type": ["object", "null"],
+        "additionalProperties": false,
+        "properties": {
+          "created": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "EXIF DateTimeOriginal as ISO 8601 UTC timestamp. Null if not present in the image.",
+            "example": "2026-01-31T10:00:00Z",
+            "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:(?:[0-5][0-9]|60)(?:\\.[0-9]{1,15})?(?:Z|[+\\-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+            "minLength": 20,
+            "maxLength": 38,
+            "x-42c-format": "o:date-time"
+          },
+          "location": {
+            "description": "GPS coordinates extracted from EXIF data. Null if not present in the image.",
+            "$ref": "#/components/schemas/NullableGeoLocation"
+          },
+          "camera": {
+            "type": ["string", "null"],
+            "pattern": "^[\\x20-\\x7E]{0,256}$",
+            "maxLength": 256,
+            "description": "Camera make and model from EXIF data (e.g. 'iPhone 15 Pro'). Null if not present in the image."
+          }
+        }
+      },
+      "NullableGeoLocation": {
+        "type": ["object", "null"],
+        "required": ["lat", "lon"],
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "description": "Latitude in decimal degrees (WGS 84). Range: -90 to 90."
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "description": "Longitude in decimal degrees (WGS 84). Range: -180 to 180."
+          }
+        }
+      },
+      "GeoLocation": {
+        "type": "object",
+        "required": ["lat", "lon"],
+        "additionalProperties": false,
+        "properties": {
+          "lat": {
+            "type": "number",
+            "minimum": -90,
+            "maximum": 90,
+            "description": "Latitude in decimal degrees (WGS 84). Range: -90 to 90."
+          },
+          "lon": {
+            "type": "number",
+            "minimum": -180,
+            "maximum": 180,
+            "description": "Longitude in decimal degrees (WGS 84). Range: -180 to 180."
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": ["error"],
+        "additionalProperties": false,
+        "properties": {
+          "error": {
+            "type": "string",
+            "pattern": "^[\\x20-\\x7E]{1,512}$",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "Human-readable description of the error."
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "clientCertificate": {
+        "type": "mutualTLS",
+        "description": "Client certificate authentication (mTLS). APIM validates the client certificate against a trusted CA list."
+      },
+      "apiKey": {
+        "type": "apiKey",
+        "name": "Ocp-Apim-Subscription-Key",
+        "in": "header",
+        "description": "Azure API Management subscription key. Required in addition to client certificate."
+      }
+    }
+  },
+  "security": [
+    {
+      "clientCertificate": [],
+      "apiKey": []
+    }
+  ]
+}
