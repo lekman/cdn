@@ -6,18 +6,20 @@
 
 The system context shows how the Edge Cache CDN API fits into a consumer's workflow. Clients upload images via APIM. Images are served from Cloudflare CDN at the edge.
 
-<div style="background: white; background-color: white; padding: 0px; border: 1px solid #ccc; border-radius: 10px;">
+<div style="background: white; background-color: white; padding: 0px; border: 1px solid #ccc; border-radius: 10px; max-width: 700px; margin: 1em auto">
 
 ```mermaid
 %%{init: {'theme':'neutral', 'themeVariables': { 'primaryColor':'#e3f2fd', 'primaryTextColor':'#000', 'primaryBorderColor':'#1976d2', 'lineColor':'#616161', 'secondaryColor':'#fff3e0', 'tertiaryColor':'#f3e5f5', 'fontSize':'14px'}}}%%
 C4Context
     title Edge Cache CDN API - System Context
-
-    Person(client, "API Client", "Uploads/manages images via mTLS + subscription key")
+    
     Person(browser, "End User", "Views images via CDN URL")
 
-    System(api, "CDN API", "APIM gateway: upload, metadata, delete")
+    Person(client, "API Client", "Uploads/manages images via mTLS + subscription key")
+
     System(cdn, "Cloudflare CDN", "Edge cache and image optimisation at img.lekman.com")
+
+    System(api, "CDN API", "APIM gateway: upload, metadata, delete")
 
     System_Ext(azure, "Azure Backend", "Blob Storage, Cosmos DB, Functions, Service Bus")
 
@@ -26,7 +28,7 @@ C4Context
     Rel(api, azure, "Store, query, delete")
     Rel(cdn, azure, "Origin pull", "Blob Storage")
 
-    UpdateLayoutConfig($c4ShapeInRow="3", $c4BoundaryInRow="1")
+    UpdateLayoutConfig($c4ShapeInRow="2", $c4BoundaryInRow="1")
 ```
 
 </div>
@@ -37,30 +39,43 @@ Zooms into the system boundary to show each deployable unit and how they communi
 
 <div style="background: white; background-color: white; padding: 0px; border: 1px solid #ccc; border-radius: 10px;">
 
+<!-- [MermaidChart: c7dc0071-0ea9-4f28-847e-f4f29a34617d] -->
 ```mermaid
+---
+id: c7dc0071-0ea9-4f28-847e-f4f29a34617d
+---
 %%{init: {'theme':'neutral', 'themeVariables': { 'primaryColor':'#e3f2fd', 'primaryTextColor':'#000', 'primaryBorderColor':'#1976d2', 'lineColor':'#616161', 'secondaryColor':'#fff3e0', 'tertiaryColor':'#f3e5f5', 'fontSize':'14px'}}}%%
 C4Container
     title Edge Cache CDN API - Container Diagram
-
-    Person(client, "API Client")
+    
     Person(browser, "End User")
+    Person(client, "API Client")    
+
+    Container_Boundary(cf, "Cloudflare") {
+        Container(cdn, "Cloudflare CDN", "Edge", "img.lekman.com cache + optimisation")
+    
+    }
 
     Container_Boundary(apim, "Azure APIM") {
         Container(post, "POST /images", "APIM Policy", "Validate, hash, store blob, create Cosmos doc, queue message")
         Container(get, "GET /images/{hash}", "APIM Policy", "Query Cosmos DB by hash")
         Container(del, "DELETE /images/{hash}", "APIM Policy", "Route to Delete Function")
+    }    
+
+    Container_Boundary(data-storage, "Data Storage") {
+        ContainerDb(cosmos, "Cosmos DB", "Azure", "Image metadata documents")
+        ContainerDb(blob, "Blob Storage", "Azure", "Images stored by SHA-256 hash")
     }
 
     Container_Boundary(functions, "Azure Functions") {
         Container(delete_fn, "Delete Function", "HTTP Trigger", "Delete blob + Cosmos, purge Cloudflare")
         Container(metadata_fn, "Metadata Function", "Service Bus Trigger", "Extract dimensions + EXIF")
-    }
+    }   
 
-    ContainerDb(blob, "Blob Storage", "Azure", "Images stored by SHA-256 hash")
-    ContainerDb(cosmos, "Cosmos DB", "Azure", "Image metadata documents")
-    Container(bus, "Service Bus", "Azure", "image-metadata-extraction queue")
-    Container(cdn, "Cloudflare CDN", "Edge", "img.lekman.com cache + optimisation")
-    Container(kv, "Key Vault", "Azure", "Cloudflare API token")
+    Container_Boundary(events, "Event Management") {
+        Container(bus, "Service Bus", "Azure", "image-metadata-extraction queue")
+        Container(kv, "Key Vault", "Azure", "Cloudflare API token")
+    }    
 
     Rel(client, post, "Upload image")
     Rel(client, get, "Get metadata")
@@ -85,7 +100,7 @@ C4Container
 
     Rel(cdn, blob, "Origin pull")
 
-    UpdateLayoutConfig($c4ShapeInRow="4", $c4BoundaryInRow="2")
+    UpdateLayoutConfig($c4ShapeInRow="100", $c4BoundaryInRow="3")
 ```
 
 </div>
