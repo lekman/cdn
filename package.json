@@ -1,6 +1,6 @@
 {
   "name": "@lekman/cdn",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Edge Cache CDN API — content-addressed image storage and distribution via Cloudflare CDN with Azure backend",
   "private": true,
   "type": "module",
