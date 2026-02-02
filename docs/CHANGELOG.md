@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.5.0](https://github.com/lekman/cdn/compare/cdn-v1.4.1...cdn-v1.5.0) (2026-02-02)
+
+
+### Features
+
+* **planner:** add unified planning workflow skill with context detection and PRD validation ([46308e3](https://github.com/lekman/cdn/commit/46308e3958e809db98dac96b7199ba32cde37c3b))
+* **planner:** create PRD template for structured documentation ([46308e3](https://github.com/lekman/cdn/commit/46308e3958e809db98dac96b7199ba32cde37c3b))
+* **refine:** implement skill to transform early requirements into validated PRD ([46308e3](https://github.com/lekman/cdn/commit/46308e3958e809db98dac96b7199ba32cde37c3b))
+* **swagger-ui:** add Swagger UI page and GitHub Pages deployment ([#17](https://github.com/lekman/cdn/issues/17)) ([1e3a067](https://github.com/lekman/cdn/commit/1e3a06713816f26ad804b1606f358de2735bf1bf))
+
+
+### Documentation
+
+* **skill:** provide guidelines for creating and maintaining Claude Code skill files ([46308e3](https://github.com/lekman/cdn/commit/46308e3958e809db98dac96b7199ba32cde37c3b))
+* **swagger-ui:** add PRD for Swagger UI on GitHub Pages ([b30796b](https://github.com/lekman/cdn/commit/b30796b2e21a8b78bc84481c83c8f106d47aa767))
+
 ## [1.4.1](https://github.com/lekman/cdn/compare/cdn-v1.4.0...cdn-v1.4.1) (2026-02-01)
 
 
