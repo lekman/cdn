@@ -18,9 +18,9 @@ runs:
   steps:
     - name: Bootstrap consumption plan
       shell: bash
+      env:
+        STACK: ${{ inputs.stack }}
       run: |
-        STACK="${{ inputs.stack }}"
-
         case "$STACK" in
           dev)
             RG="rg-cdn-dev-uksouth-001"

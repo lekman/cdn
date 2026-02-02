@@ -6,6 +6,7 @@
     "infra/**",
     "cdn/**",
     "docs/policies/**",
-    "openapi/**"
+    "openapi/**",
+    "../../.claude/projects/**/tool-results/**"
   ]
 }

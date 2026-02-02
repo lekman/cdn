@@ -1,0 +1,5 @@
+# Claude Code skills — configuration scripts that need shell: true
+.claude/skills/
+
+# VS Code workspace settings — org IDs are not secrets
+.vscode/settings.json
