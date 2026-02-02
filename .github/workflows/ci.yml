@@ -110,7 +110,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Run Semgrep
-        uses: returntocorp/semgrep-action@v1
+        uses: semgrep/semgrep-action@v1
         with:
           config: >-
             p/security-audit
@@ -239,6 +239,20 @@ jobs:
         with:
           stack: dev
 
+      - name: Refresh Pulumi state
+        uses: pulumi/actions@v6
+        with:
+          command: refresh
+          stack-name: dev
+          work-dir: infra
+          cloud-url: https://api.pulumi.com
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
       - name: Deploy with Pulumi
         uses: pulumi/actions@v6
         with:
@@ -301,33 +315,43 @@ jobs:
     if: always()
     steps:
       - name: Check quality gate
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          TYPECHECK_RESULT: ${{ needs.typecheck.result }}
+          TEST_RESULT: ${{ needs.test.result }}
+          SECURITY_RESULT: ${{ needs.security.result }}
+          INFRA_CHANGED: ${{ needs.infra-changes.outputs.changed }}
+          INFRA_TEST_RESULT: ${{ needs.infra-test.result }}
+          PREVIEW_RESULT: ${{ needs.pulumi-preview.result }}
+          DEPLOY_DEV_RESULT: ${{ needs.pulumi-deploy-dev.result }}
+          VERIFY_DEV_RESULT: ${{ needs.verify-dev.result }}
         run: |
-          if [ "${{ needs.lint.result }}" != "success" ] || \
-             [ "${{ needs.typecheck.result }}" != "success" ] || \
-             [ "${{ needs.test.result }}" != "success" ] || \
-             [ "${{ needs.security.result }}" != "success" ]; then
+          if [ "$LINT_RESULT" != "success" ] || \
+             [ "$TYPECHECK_RESULT" != "success" ] || \
+             [ "$TEST_RESULT" != "success" ] || \
+             [ "$SECURITY_RESULT" != "success" ]; then
             echo "Quality gate failed"
             exit 1
           fi
 
           # Infra jobs: fail if they ran and failed, pass if skipped (no changes)
-          if [ "${{ needs.infra-changes.outputs.changed }}" == "true" ]; then
-            if [ "${{ needs.infra-test.result }}" != "success" ]; then
+          if [ "$INFRA_CHANGED" == "true" ]; then
+            if [ "$INFRA_TEST_RESULT" != "success" ]; then
               echo "Infrastructure tests failed"
               exit 1
             fi
-            if [ "${{ needs.pulumi-preview.result }}" != "success" ] && \
-               [ "${{ needs.pulumi-preview.result }}" != "skipped" ]; then
+            if [ "$PREVIEW_RESULT" != "success" ] && \
+               [ "$PREVIEW_RESULT" != "skipped" ]; then
               echo "Pulumi preview failed"
               exit 1
             fi
-            if [ "${{ needs.pulumi-deploy-dev.result }}" != "success" ] && \
-               [ "${{ needs.pulumi-deploy-dev.result }}" != "skipped" ]; then
+            if [ "$DEPLOY_DEV_RESULT" != "success" ] && \
+               [ "$DEPLOY_DEV_RESULT" != "skipped" ]; then
               echo "Dev deployment failed"
               exit 1
             fi
-            if [ "${{ needs.verify-dev.result }}" != "success" ] && \
-               [ "${{ needs.verify-dev.result }}" != "skipped" ]; then
+            if [ "$VERIFY_DEV_RESULT" != "success" ] && \
+               [ "$VERIFY_DEV_RESULT" != "skipped" ]; then
               echo "Dev verification failed"
               exit 1
             fi

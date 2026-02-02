@@ -65,6 +65,20 @@ jobs:
         with:
           stack: prod
 
+      - name: Refresh Pulumi state
+        uses: pulumi/actions@v6
+        with:
+          command: refresh
+          stack-name: prod
+          work-dir: infra
+          cloud-url: https://api.pulumi.com
+        env:
+          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+          ARM_USE_OIDC: "true"
+          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
+          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
+
       - name: Deploy with Pulumi
         uses: pulumi/actions@v6
         with:
@@ -150,8 +164,10 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Verify deployment
+        env:
+          PAGE_URL: ${{ steps.deploy.outputs.page_url }}
         run: |
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.page_url }}")
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$PAGE_URL")
           echo "HTTP status: $STATUS"
           if [ "$STATUS" -ne 200 ]; then
             echo "::error::GitHub Pages deployment verification failed (HTTP $STATUS)"
