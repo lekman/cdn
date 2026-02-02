@@ -1,6 +1,7 @@
-# Continuous deployment pipeline for production infrastructure.
+# Continuous deployment pipeline for production infrastructure and docs.
 # Deploys to Azure via Pulumi on push to main (when infra files change),
 # then runs IQ and OQ verification tests. Also supports manual dispatch.
+# Deploys Swagger UI to GitHub Pages when OpenAPI spec or index.html changes.
 # Uses OIDC (federated identity) for Azure authentication.
 # Uses the GitHub environment for approval gates.
 #
@@ -19,6 +20,8 @@ on:
     branches: [main]
     paths:
       - "infra/**"
+      - "openapi/**"
+      - "index.html"
       - ".github/workflows/cd.yml"
   workflow_dispatch:
 
@@ -114,3 +117,43 @@ jobs:
         run: STACK=prod bun test tests/oq/
         env:
           PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
+
+  deploy-docs:
+    name: 'Deploy API Docs (GitHub Pages)'
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      contains(toJSON(github.event.commits.*.modified), 'openapi/') ||
+      contains(toJSON(github.event.commits.*.added), 'openapi/') ||
+      contains(toJSON(github.event.commits.*.modified), 'index.html') ||
+      contains(toJSON(github.event.commits.*.added), 'index.html')
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Configure GitHub Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
+
+      - name: Verify deployment
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "${{ steps.deploy.outputs.page_url }}")
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" -ne 200 ]; then
+            echo "::error::GitHub Pages deployment verification failed (HTTP $STATUS)"
+            exit 1
+          fi
