@@ -239,20 +239,6 @@ jobs:
         with:
           stack: dev
 
-      - name: Refresh Pulumi state
-        uses: pulumi/actions@v6
-        with:
-          command: refresh
-          stack-name: dev
-          work-dir: infra
-          cloud-url: https://api.pulumi.com
-        env:
-          PULUMI_ACCESS_TOKEN: ${{ secrets.PULUMI_ACCESS_TOKEN }}
-          ARM_USE_OIDC: "true"
-          ARM_CLIENT_ID: ${{ vars.ARM_CLIENT_ID }}
-          ARM_TENANT_ID: ${{ vars.ARM_TENANT_ID }}
-          ARM_SUBSCRIPTION_ID: ${{ vars.ARM_SUBSCRIPTION_ID }}
-
       - name: Deploy with Pulumi
         uses: pulumi/actions@v6
         with:
