@@ -39,7 +39,9 @@
         "CLAUDE.md": true,
         "LICENSE": true,
         "turbo.json": true,
-        "AGENTS.md": true
+        "AGENTS.md": true,
+        ".nojekyll": true,
+        "codecov.yml": true
     },
     "snyk.advanced.organization": "514894ab-6c44-4cc6-8d04-36e649121974",
     "snyk.advanced.autoSelectOrganization": true,
